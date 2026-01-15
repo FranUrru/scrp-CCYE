@@ -1,0 +1,26 @@
+name: Scraper Diario de Eventos
+
+on:
+  schedule:
+    - cron: '0 12 * * *' # Esto corre todos los días a las 12:00 UTC (9:00 AM Argentina)
+  workflow_dispatch:      # Esto te permite darle al botón "Run" manualmente
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar mi código
+        uses: actions/checkout@v3
+
+      - name: Instalar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Instalar librerías
+        run: pip install -r requirements.txt
+
+      - name: Ejecutar el Scraper
+        run: python scrp-tkt-evb-ede.py # <-- Cambia esto por el nombre real de tu archivo
+        env:
+          GOOGLE_SHEETS_JSON_SECRET: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
