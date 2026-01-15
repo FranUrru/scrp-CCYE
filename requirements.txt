@@ -1,0 +1,9 @@
+selenium
+webdriver-manager
+pandas
+beautifulsoup4
+gspread
+oauth2client
+openpyxl
+requests
+numpy
