@@ -447,6 +447,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
     import numpy as np
     import time
     import pandas as pd
+    import os
     secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
     intentos = 0
     while intentos < retries:
@@ -916,3 +917,4 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
