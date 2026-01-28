@@ -451,9 +451,15 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
     import json
     secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
     # Verificación de seguridad rápida
-    if not secreto_json:
-        print(f"❌ Error crítico: La variable 'GCP_SERVICE_ACCOUNT_JSON' está vacía en GitHub.")
+    if secreto_json is None:
+        print("🔴 DIAGNÓSTICO: La variable os.environ no encuentra 'GCP_SERVICE_ACCOUNT_JSON'. Revisa el YAML.")
         return False
+    
+    if len(secreto_json.strip()) == 0:
+        print("🔴 DIAGNÓSTICO: La variable existe pero está VACÍA. Revisa el valor en GitHub Secrets.")
+        return False
+
+    print(f"🟢 DIAGNÓSTICO: Secreto encontrado. Empieza con: {secreto[0]} y termina con: {secreto[-1]}")
     
     intentos = 0
     while intentos < retries:
@@ -923,6 +929,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
