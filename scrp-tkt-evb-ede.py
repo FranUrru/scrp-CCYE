@@ -628,11 +628,6 @@ def extraer_promedio_precios(soup):
     return prom_f2 if prom_f2 is not None else prom_f1
 
 def normalizar_fecha_complejo(fecha_str):
-    # (Mantenemos tu lógica de normalización de fecha compleja aquí...)
-    # [Insertar aquí el cuerpo de tu función normalizar_fecha_complejo]
-    return [pd.Timestamp.now()] # Simplificado para el ejemplo
-
-def normalizar_fecha_complejo(fecha_str):
     """Normaliza una cadena de fecha y hora con múltiples formatos."""
     fechas_normalizadas = []
     año_actual = pd.Timestamp.now().year
@@ -715,7 +710,6 @@ def normalizar_fecha_complejo(fecha_str):
             return fechas_normalizadas
         except ValueError:
             pass
-    return df_normalizado
 
 def procesar_dataframe_complejo(df, columna_fecha='Fecha'):
     """Procesa el DataFrame para normalizar la columna de fecha con la función compleja."""
@@ -1031,6 +1025,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
