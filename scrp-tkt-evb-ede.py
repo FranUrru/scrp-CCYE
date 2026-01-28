@@ -675,7 +675,7 @@ def ejecutar_scraper_eden():
                 'Nombre': evento.find('div', class_='item_title').text.strip() if evento.find('div', class_='item_title') else None,
                 'Locación': evento.find('strong').text.strip() if evento.find('strong') else None,
                 'Fecha': evento.find('span').text.strip() if evento.find('span') else None,
-                'href': evento['href']
+                'href': evento.find('a')['href'] if evento.find('a') else None
             })
         # PRINT 2: Ver el primer elemento para confirmar las llaves del diccionario
         if data:
@@ -940,6 +940,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
