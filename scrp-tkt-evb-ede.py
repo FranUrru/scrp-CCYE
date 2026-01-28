@@ -657,7 +657,6 @@ def normalizar_fecha_complejo(fecha_str):
             return fechas_normalizadas
         except ValueError:
             pass
-        return []
 
     # Caso de rangos de fechas con tres días (ej: Viernes 11, Sábado 12 y Domingo 13 de Julio)
     match_rango_tres = re.search(r'(\w+) (\d+), (\w+) (\d+) y (\w+) (\d+) de (\w+)', fecha_str)
@@ -711,6 +710,7 @@ def normalizar_fecha_complejo(fecha_str):
             return fechas_normalizadas
         except ValueError:
             pass
+    return []
 
 def procesar_dataframe_complejo(df, columna_fecha='Fecha'):
     """Procesa el DataFrame para normalizar la columna de fecha con la función compleja."""
@@ -1026,6 +1026,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
