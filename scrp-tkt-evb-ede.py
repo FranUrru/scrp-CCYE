@@ -704,7 +704,9 @@ def ejecutar_scraper_eden():
 
         # 4. Filtrado y Normalización
         data_df = data_df[data_df['filtro_ciudad'].str.contains('Córdoba|Cordoba', case=False, na=False)]
+        print(f"DEBUG - Columnas antes de procesar: {data_df.columns.tolist()}") # TEST A
         df_norm = procesar_dataframe_complejo(data_df) # Usando tu función de procesamiento
+        print(f"DEBUG - Columnas después de procesar: {df_norm.columns.tolist()}") # TEST B
         
         # 5. Formateo Final
         df_final = pd.DataFrame({
@@ -929,6 +931,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
