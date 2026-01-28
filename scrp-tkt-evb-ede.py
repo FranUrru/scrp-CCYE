@@ -686,6 +686,12 @@ def ejecutar_scraper_eden():
         data_df = pd.DataFrame(data).dropna(subset=['Locación']).drop_duplicates().reset_index(drop=True)
         # PRINT 3: Si llega aquí, el problema no era la línea anterior
         print("DEBUG: DataFrame 'data_df' creado exitosamente.")
+        print(f"Total eventos después de filtrar ciudad (Córdoba): {len(data_df)}")
+        if not data_df.empty:
+            print("Muestra de fechas capturadas (primeros 5):")
+            print(data_df[['Nombre', 'Fecha']].head().to_string())
+        else:
+            print("⚠️ El DataFrame está VACÍO después de filtrar por ciudad. Por eso no hay fechas.")
 
         # 3. Recorrido de detalles para Precios y Ciudad
         for index, row in data_df.iterrows():
@@ -940,6 +946,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
