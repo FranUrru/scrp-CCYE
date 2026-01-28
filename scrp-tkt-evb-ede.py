@@ -429,8 +429,16 @@ def iniciar_driver():
     # Ocultamos los logs de errores de Google que mencionaste antes
     chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
     chrome_options.add_argument('--log-level=3')
+    
+    # --- Cambio solicitado: Modo Headless ---
+    chrome_options.add_argument("--headless=new") 
+    
     user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
     chrome_options.add_argument(f"user-agent={user_agent}")
+    
+    # He añadido el retorno del driver para que la función sea operativa
+    driver = webdriver.Chrome(options=chrome_options)
+    return driver
     
     service = Service(ChromeDriverManager().install())
     return webdriver.Chrome(service=service, options=chrome_options)
@@ -439,12 +447,13 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
     import numpy as np
     import time
     import pandas as pd
-
+    secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
     intentos = 0
     while intentos < retries:
         try:
             scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-            creds = ServiceAccountCredentials.from_json_keyfile_name(r'C:\Users\agosa\Downloads\proyecto-automatizacion-ccye-51ea2d36dbb9.json', scope)
+            info_claves = json.loads(os.environ.get('GCP_SERVICE_ACCOUNT_JSON'))
+            creds = service_account.Credentials.from_service_account_info(info_claves, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
             client = gspread.authorize(creds)
             
             sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
@@ -547,9 +556,9 @@ def ejecutar_scraper_ticketek():
         df_final['price_avg'] = df_final['price_avg'].astype(str).str.replace("'", "", regex=False).astype(float)
 
         # 5. Exportar a Excel (Opcional si vas a Sheets, pero lo mantenemos)
-        fecha_actual = datetime.now().strftime('%Y-%m-%d')
-        ruta_archivo = f"C:/Users/agosa/OneDrive/Escritorio/ticketek/scrp_ticketek_{fecha_actual}.xlsx"
-        df_final.to_excel(ruta_archivo, index=False)
+        #fecha_actual = datetime.now().strftime('%Y-%m-%d')
+        #ruta_archivo = f"C:/Users//OneDrive/Escritorio/ticketek/scrp_ticketek_{fecha_actual}.xlsx"
+        #df_final.to_excel(ruta_archivo, index=False)
 
         subir_a_google_sheets(df_final,'Ticketek historico (Auto)','Hoja 1')
         reporte["estado"] = "Exitoso"
@@ -905,4 +914,5 @@ def ejecutar_scraper_eventbrite():
         return reporte
 
 # Ejecutar
+
 ejecutar_scraper_eventbrite()
