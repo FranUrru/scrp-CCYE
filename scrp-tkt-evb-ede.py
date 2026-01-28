@@ -450,6 +450,11 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
     import os
     import json
     secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
+    # Verificación de seguridad rápida
+    if not secreto_json:
+        print(f"❌ Error crítico: La variable 'GCP_SERVICE_ACCOUNT_JSON' está vacía en GitHub.")
+        return False
+    
     intentos = 0
     while intentos < retries:
         try:
@@ -918,6 +923,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
