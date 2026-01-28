@@ -1,4 +1,3 @@
-import json
 def click_load_more_until_disappears(driver):
     """
     Hace clic en el botón 'Cargar más' repetidamente hasta que desaparece.
@@ -449,6 +448,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
     import pandas as pd
     import os
     import json
+    from google.oauth2 import service_account
     secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
     # Verificación de seguridad rápida
     if secreto_json is None:
@@ -929,6 +929,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
