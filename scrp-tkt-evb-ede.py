@@ -459,7 +459,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
         print("🔴 DIAGNÓSTICO: La variable existe pero está VACÍA. Revisa el valor en GitHub Secrets.")
         return False
 
-    print(f"🟢 DIAGNÓSTICO: Secreto encontrado. Empieza con: {secreto[0]} y termina con: {secreto[-1]}")
+    print(f"🟢 DIAGNÓSTICO: Secreto encontrado. Empieza con: {secreto_json[0]} y termina con: {secreto_json[-1]}")
     
     intentos = 0
     while intentos < retries:
@@ -929,6 +929,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
