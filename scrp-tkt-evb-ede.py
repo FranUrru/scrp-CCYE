@@ -665,7 +665,7 @@ def ejecutar_scraper_eden():
 
         # 2. Scrapeo de lista principal
         soup = BeautifulSoup(driver.page_source, 'html.parser')
-        eventos_html = soup.find_all('a', class_='grid_element')
+        eventos_html = soup.find_all('div', class_='grid_element')
         # PRINT 1: Ver si el scraper encontró elementos en el HTML
         print(f"DEBUG: Cantidad de 'grid_element' encontrados: {len(eventos_html)}")
         
@@ -940,6 +940,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
