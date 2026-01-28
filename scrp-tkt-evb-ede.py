@@ -717,6 +717,20 @@ def normalizar_fecha_complejo(fecha_str):
             pass
     return df_normalizado
 
+def procesar_dataframe_complejo(df, columna_fecha='Fecha'):
+    """Procesa el DataFrame para normalizar la columna de fecha con la función compleja."""
+    filas_nuevas = []
+    for index, row in df.iterrows():
+        fecha_str = str(row[columna_fecha]).strip() # Asegurarse de que sea string y eliminar espacios alrededor
+        fechas_normalizadas = normalizar_fecha_complejo(fecha_str)
+        for fecha in fechas_normalizadas:
+            nueva_fila = row.copy()
+            nueva_fila[columna_fecha] = fecha
+            filas_nuevas.append(nueva_fila)
+
+    df_normalizado = pd.DataFrame(filas_nuevas)
+    return df_normalizado
+
 def ejecutar_scraper_eden():
     driver = None
     reporte = {
@@ -1017,6 +1031,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
