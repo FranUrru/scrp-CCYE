@@ -666,6 +666,8 @@ def ejecutar_scraper_eden():
         # 2. Scrapeo de lista principal
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         eventos_html = soup.find_all('a', class_='grid_element')
+        # PRINT 1: Ver si el scraper encontró elementos en el HTML
+        print(f"DEBUG: Cantidad de 'grid_element' encontrados: {len(eventos_html)}")
         
         data = []
         for evento in eventos_html:
@@ -675,8 +677,15 @@ def ejecutar_scraper_eden():
                 'Fecha': evento.find('span').text.strip() if evento.find('span') else None,
                 'href': evento['href']
             })
+        # PRINT 2: Ver el primer elemento para confirmar las llaves del diccionario
+        if data:
+            print(f"DEBUG: Llaves del primer diccionario en 'data': {list(data[0].keys())}")
+        else:
+            print("DEBUG: La lista 'data' está VACÍA.")
         
         data_df = pd.DataFrame(data).dropna(subset=['Locación']).drop_duplicates().reset_index(drop=True)
+        # PRINT 3: Si llega aquí, el problema no era la línea anterior
+        print("DEBUG: DataFrame 'data_df' creado exitosamente.")
 
         # 3. Recorrido de detalles para Precios y Ciudad
         for index, row in data_df.iterrows():
@@ -931,6 +940,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
