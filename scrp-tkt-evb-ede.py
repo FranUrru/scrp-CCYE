@@ -1028,7 +1028,7 @@ def ejecutar_scraper_eventbrite():
 
         # --- SUBIDA FINAL DE AUDITORÍA ---
         if not df_rechazados.empty:
-            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventbrite')
+            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Hoja 1')
 
     except Exception as e:
         reporte["estado"] = "Fallido"
@@ -1039,6 +1039,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
