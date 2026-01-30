@@ -656,7 +656,7 @@ def ejecutar_scraper_ticketek():
             driver.quit()
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
-ejecutar_scraper_ticketek()
+#ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -807,9 +807,20 @@ def ejecutar_scraper_eden():
         "inicio": datetime.now().strftime('%H:%M:%S')
     }
     
+    # --- ÁREA DE AUDITORÍA ---
+    df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link'])
+
+    def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href, col_href="Link"):
+        nonlocal df_rechazados
+        nuevo = pd.DataFrame([{
+            'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
+            'Motivo': motivo, 'Linea': str(linea), 'Fuente': fuente,
+            col_href: href
+        }])
+        df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
+
     try:
-        # 1. Configuración e inicio
-        driver = iniciar_driver() # Usamos la función de inicio que definimos antes
+        driver = iniciar_driver()
         BASE_URL = "https://www.edenentradas.ar"
         driver.get(BASE_URL + "/")
         time.sleep(5)
@@ -817,9 +828,11 @@ def ejecutar_scraper_eden():
         # 2. Scrapeo de lista principal
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         eventos_html = soup.find_all('div', class_='grid_element')
-        # PRINT 1: Ver si el scraper encontró elementos en el HTML
-        print(f"DEBUG: Cantidad de 'grid_element' encontrados: {len(eventos_html)}")
         
+        if not eventos_html:
+            registrar_rechazo("Página Principal", "N/A", "N/A", "No se detectaron elementos grid_element", "116", "Eden", BASE_URL)
+            return reporte
+
         data = []
         for evento in eventos_html:
             data.append({
@@ -828,37 +841,33 @@ def ejecutar_scraper_eden():
                 'Fecha': evento.find('span').text.strip() if evento.find('span') else None,
                 'href': evento.find('a')['href'] if evento.find('a') else None
             })
-        # PRINT 2: Ver el primer elemento para confirmar las llaves del diccionario
-        if data:
-            print(f"DEBUG: Llaves del primer diccionario en 'data': {list(data[0].keys())}")
-        else:
-            print("DEBUG: La lista 'data' está VACÍA.")
         
-        data_df = pd.DataFrame(data).dropna(subset=['Locación']).drop_duplicates().reset_index(drop=True)
-        # PRINT 3: Si llega aquí, el problema no era la línea anterior
-        print("DEBUG: DataFrame 'data_df' creado exitosamente.")
-        print(f"Total eventos después de filtrar ciudad (Córdoba): {len(data_df)}")
-        if not data_df.empty:
-            print("Muestra de fechas capturadas (primeros 5):")
-            print(data_df[['Nombre', 'Fecha']].head().to_string())
-        else:
-            print("⚠️ El DataFrame está VACÍO después de filtrar por ciudad. Por eso no hay fechas.")
+        # --- AUDITORÍA POST-LISTA (Datos básicos incompletos) ---
+        data_df = pd.DataFrame(data)
+        sin_datos_basicos = data_df[data_df['Locación'].isna() | data_df['Nombre'].isna()]
+        for _, row in sin_datos_basicos.iterrows():
+            registrar_rechazo(row['Nombre'], "Incompleto", row['Fecha'], "Falta Locación o Nombre en el Grid", "129", "Eden", row['href'])
 
-        # 3. Recorrido de detalles para Precios y Ciudad
+        data_df = data_df.dropna(subset=['Locación']).drop_duplicates().reset_index(drop=True)
+
+        # 3. Recorrido de detalles
         for index, row in data_df.iterrows():
+            full_href = f"{BASE_URL}{row['href'].replace('..', '')}"
             try:
-                full_href = f"{BASE_URL}{row['href'].replace('..', '')}"
                 driver.get(full_href)
                 time.sleep(3)
-                
-                # Manejo de página intermedia e ingreso a compra para ver precios
                 soup_det = BeautifulSoup(driver.page_source, 'html.parser')
                 
-                # Lógica de detección de ciudad
                 cols = soup_det.find_all('div', class_='col-xs-7')
-                data_df.loc[index, 'filtro_ciudad'] = ', '.join([e.text.strip() for e in cols]) if cols else ""
+                ciudad_texto = ', '.join([e.text.strip() for e in cols]) if cols else ""
+                data_df.loc[index, 'filtro_ciudad'] = ciudad_texto
 
-                # Click en botones para ver precios (Tipo 1 o Tipo 2)
+                # --- AUDITORÍA: Filtro de Ciudad (Córdoba) ---
+                if not any(x in ciudad_texto for x in ['Córdoba', 'Cordoba']):
+                    registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], f"Evento fuera de Córdoba: {ciudad_texto}", "153", "Eden", full_href)
+                    continue
+
+                # Precios...
                 try:
                     btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div.picker-full button.next, #buyButton")))
                     driver.execute_script("arguments[0].click();", btn)
@@ -866,45 +875,59 @@ def ejecutar_scraper_eden():
                     data_df.loc[index, 'precio_promedio'] = extraer_promedio_precios(BeautifulSoup(driver.page_source, 'html.parser'))
                 except:
                     data_df.loc[index, 'precio_promedio'] = None
-            except: continue
+
+            except Exception as e:
+                registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], f"Error navegando detalle: {str(e)}", "143", "Eden", full_href)
+                continue
 
         # 4. Filtrado y Normalización
         data_df = data_df[data_df['filtro_ciudad'].str.contains('Córdoba|Cordoba', case=False, na=False)]
-        print(f"DEBUG - Columnas antes de procesar: {data_df.columns.tolist()}") # TEST A
-        df_norm = procesar_dataframe_complejo(data_df) # Usando tu función de procesamiento
-        print(f"DEBUG - Columnas después de procesar: {df_norm.columns.tolist()}") # TEST B
         
-        # 5. Formateo Final
-        df_final = pd.DataFrame({
-            'Eventos': df_norm['Nombre'],
-            'Lugar': df_norm['Locación'],
-            'Comienza': df_norm['Fecha'],
-            'Finaliza': df_norm['Fecha'],
-            'Tipo de evento': None,
-            'Detalle': None,
-            'Alcance': None,
-            'Costo de entrada': df_norm['precio_promedio'],
-            'Fuente': 'Eden Entradas',
-            'Origen': df_norm['href'].str.replace('..', 'https://www.edenentradas.com.ar', regex=False),
-            'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S')
-        }).dropna(subset=['Comienza'])
+        # --- AUDITORÍA POST-NORMALIZACIÓN DE FECHA ---
+        df_norm = procesar_dataframe_complejo(data_df)
+        
+        # Verificamos si procesar_dataframe_complejo devolvió filas para este evento
+        eventos_antes = set(data_df['Nombre'])
+        eventos_despues = set(df_norm['Nombre'])
+        fallos_fecha = eventos_antes - eventos_despues
+        
+        for nombre in fallos_fecha:
+            # Buscamos el row original para el href
+            orig = data_df[data_df['Nombre'] == nombre].iloc[0]
+            registrar_rechazo(nombre, orig['Locación'], orig['Fecha'], f"Regex falló: No se pudo normalizar la fecha: {orig['Fecha']}", "173", "Eden", orig['href'])
 
-        # 6. Subida a Google Sheets con nuestra función de reintentos
-        subir_a_google_sheets(df_final, 'Eden historico (Auto)', 'Hoja 1')
+        # 5. Formateo Final
+        if not df_norm.empty:
+            df_final = pd.DataFrame({
+                'Eventos': df_norm['Nombre'],
+                'Lugar': df_norm['Locación'],
+                'Comienza': df_norm['Fecha'],
+                'Finaliza': df_norm['Fecha'],
+                'Tipo de evento': None,
+                'Detalle': None,
+                'Alcance': None,
+                'Costo de entrada': df_norm['precio_promedio'],
+                'Fuente': 'Eden Entradas',
+                'Origen': df_norm['href'].str.replace('..', 'https://www.edenentradas.com.ar', regex=False),
+                'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+            }).dropna(subset=['Comienza'])
+
+            subir_a_google_sheets(df_final, 'Eden historico (Auto)', 'Hoja 1')
+
+        # 6. Subida de Rechazados
+        if not df_rechazados.empty:
+            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eden')
 
         reporte["estado"] = "Exitoso"
-        reporte["filas_procesadas"] = len(df_final)
+        reporte["filas_procesadas"] = len(df_final) if not df_norm.empty else 0
 
     except Exception as e:
         reporte["estado"] = "Fallido"
         reporte["error"] = str(e)
-        print(f"❌ Error en Eden: {e}")
-    
     finally:
         if driver: driver.quit()
-        reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
-#ejecutar_scraper_eden()
+ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1101,6 +1124,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 #ejecutar_scraper_eventbrite()
+
 
 
 
