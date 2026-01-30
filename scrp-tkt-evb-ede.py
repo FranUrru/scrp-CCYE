@@ -539,13 +539,23 @@ def ejecutar_scraper_ticketek():
     # DataFrame para registrar descartes
     df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente'])
 
-    def registrar_rechazo(nombre, loc, fecha, motivo, linea):
-        nonlocal df_rechazados
-        nuevo = pd.DataFrame([{
-            'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
-            'Motivo': motivo, 'Linea': str(linea), 'Fuente': 'Ticketek'
-        }])
-        df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
+    def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href, col_href="Link"):
+    """
+    nombre, loc, fecha, motivo, linea, fuente: Datos del error.
+    href: El enlace al evento.
+    col_href: El nombre que quieres que tenga la columna del link en el Sheets de Rechazados.
+    """
+    nonlocal df_rechazados
+    nuevo = pd.DataFrame([{
+        'Nombre': nombre, 
+        'Locación': loc, 
+        'Fecha': fecha,
+        'Motivo': motivo, 
+        'Linea': str(linea), 
+        'Fuente': fuente,
+        col_href: href  # Agrega la columna dinámica con el link
+    }])
+    df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
     
     try:
         driver = iniciar_driver()
@@ -579,7 +589,9 @@ def ejecutar_scraper_ticketek():
                 loc="N/A", 
                 fecha="N/A", 
                 motivo=motivo_error, 
-                linea="570"
+                linea="570",
+                fuente='Ticketek',
+                href=row['href']
             )
         
         # 4. Limpieza y Reordenamiento
@@ -596,11 +608,30 @@ def ejecutar_scraper_ticketek():
                 nombre=row['title'], 
                 loc=row['lugar'] if row['lugar'] else "No detectado", 
                 fecha="No encontrada", 
-                # El motivo contendrá el texto íntegro para que analices tu Regex
                 motivo=f"FALLO DE EXTRACCIÓN de fecha. Texto analizado: {descripcion_completa}", 
-                linea="586"
+                linea="586",
+                fuente='Ticketek',
+                href=row['href']
             )
         df_artists2_cleaned['lugar'] = df_artists2_cleaned['lugar'].apply(limpiar_lugar)
+        
+        # --- PASO 2: Registro de Auditoría para Lugares Inválidos (Línea 244) ---
+        # Solo registramos los que llegaron aquí con fecha pero el lugar resultó None/Vacio
+        sin_lugar = df_artists2_cleaned[df_artists2_cleaned['lugar'].isna()]
+        for _, row in sin_lugar.iterrows():
+            registrar_rechazo(
+                nombre=row['title'], 
+                loc="No detectado", 
+                fecha=row['date'], 
+                motivo="Se descarta por falta de lugar (lugar es None después de limpiar_lugar)", 
+                linea="620",
+                fuente='Ticketek',
+                href=row['href']
+            )
+
+        # --- PASO 3: El descarte (Dropna) ---
+        # Eliminamos filas que no tengan Fecha (vienen de la 239) o Lugar (de la 244)
+        df_artists2_cleaned = df_artists2_cleaned.dropna(subset=['date', 'lugar'])
         
         df_final = reordenar_y_agregar_columnas(df_artists2_cleaned.copy())
         df_final['finaliza'] = df_final['date']
@@ -1073,6 +1104,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 #ejecutar_scraper_eventbrite()
+
 
 
 
