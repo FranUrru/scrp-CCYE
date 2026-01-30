@@ -539,7 +539,7 @@ def ejecutar_scraper_ticketek():
     # DataFrame para registrar descartes
     df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente'])
 
-    def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href, col_href="Link"):
+def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href, col_href="Link"):
     """
     nombre, loc, fecha, motivo, linea, fuente: Datos del error.
     href: El enlace al evento.
@@ -1104,6 +1104,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 #ejecutar_scraper_eventbrite()
+
 
 
 
