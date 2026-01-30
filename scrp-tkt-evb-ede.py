@@ -987,6 +987,10 @@ def ejecutar_scraper_eventbrite():
                 except: continue
 
         # --- PROCESAMIENTO ---
+# --- PROCESAMIENTO ---
+        if not event_data:
+            print("⚠️ No se encontraron eventos en Eventbrite.")
+
         df_crudo = pd.DataFrame(event_data)
         
         # Filtrado
@@ -1026,6 +1030,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
