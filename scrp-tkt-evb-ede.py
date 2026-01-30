@@ -916,7 +916,7 @@ def ejecutar_scraper_eden():
 
         # 6. Subida de Rechazados
         if not df_rechazados.empty:
-            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eden')
+            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
 
         reporte["estado"] = "Exitoso"
         reporte["filas_procesadas"] = len(df_final) if not df_norm.empty else 0
@@ -1124,6 +1124,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 #ejecutar_scraper_eventbrite()
+
 
 
 
