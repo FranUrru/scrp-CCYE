@@ -1144,7 +1144,7 @@ def ejecutar_scraper_eventbrite():
         # --- SUBIDA FINAL DE AUDITORÍA ---
         if not df_rechazados.empty:
             # Subimos a la pestaña 'Eventbrite' del documento 'Rechazados'
-            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventbrite')
+            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Hoja 1')
             print(f"✅ Auditoría Eventbrite: {len(df_rechazados)} registros subidos.")
 
     except Exception as e:
@@ -1158,6 +1158,7 @@ def ejecutar_scraper_eventbrite():
         return reporte
 
 ejecutar_scraper_eventbrite()
+
 
 
 
