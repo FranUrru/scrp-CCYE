@@ -600,6 +600,9 @@ def ejecutar_scraper_ticketek():
                 motivo=f"FALLO DE EXTRACCIÓN de fecha. Texto analizado: {descripcion_completa}", 
                 linea="586"
             )
+        if not df_rechazados.empty:
+            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
+            print("Rechazados Ticketek subidos exitosamente")
         df_artists2_cleaned['lugar'] = df_artists2_cleaned['lugar'].apply(limpiar_lugar)
         
         df_final = reordenar_y_agregar_columnas(df_artists2_cleaned.copy())
@@ -617,7 +620,7 @@ def ejecutar_scraper_ticketek():
         reporte["filas_procesadas"] = len(df_final)
         print(f"⚠️ Se registraron {len(df_con_errores)} fallos de carga en la auditoría.")
         if not df_rechazados.empty:
-            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Hoja 1')
+            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
             print("Rechazados Ticketek subidos exitosamente")
     except Exception as e:
         reporte["estado"] = "Fallido"
@@ -1073,6 +1076,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 #ejecutar_scraper_eventbrite()
+
 
 
 
