@@ -600,9 +600,6 @@ def ejecutar_scraper_ticketek():
                 motivo=f"FALLO DE EXTRACCIÓN de fecha. Texto analizado: {descripcion_completa}", 
                 linea="586"
             )
-        if not df_rechazados.empty:
-            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
-            print("Rechazados Ticketek subidos exitosamente")
         df_artists2_cleaned['lugar'] = df_artists2_cleaned['lugar'].apply(limpiar_lugar)
         
         df_final = reordenar_y_agregar_columnas(df_artists2_cleaned.copy())
@@ -1076,6 +1073,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 #ejecutar_scraper_eventbrite()
+
 
 
 
