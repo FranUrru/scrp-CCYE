@@ -932,6 +932,80 @@ ejecutar_scraper_eden()
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
 ##################################################################################################################
+import pandas as pd
+import time
+import re
+import requests
+import numpy as np
+from datetime import datetime, timedelta
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+# --- FUNCIONES DE APOYO ---
+
+def limpiar_fecha_texto(fecha):
+    """Limpia el texto de Eventbrite antes de procesarlo."""
+    if not fecha or fecha == 'N/A': return "Formato desconocido"
+    fecha = re.sub(r"\+.*", "", fecha).strip()
+    return fecha
+
+def convertir_fechas(fecha):
+    if not fecha or fecha == "N/A": return "Formato desconocido"
+    fecha_low = fecha.lower()
+    ahora = datetime.now()
+    
+    try:
+        # 1. HOY
+        if "hoy" in fecha_low:
+            match = re.search(r'(\d{1,2}:\d{2})', fecha_low)
+            if match:
+                hora, minuto = map(int, match.group(1).split(":"))
+                return ahora.replace(hour=hora, minute=minuto, second=0, microsecond=0)
+        
+        # 2. MAÑANA
+        elif "mañana" in fecha_low:
+            match = re.search(r'(\d{1,2}:\d{2})', fecha_low)
+            if match:
+                hora, minuto = map(int, match.group(1).split(":"))
+                tomorrow = ahora + timedelta(days=1)
+                return tomorrow.replace(hour=hora, minute=minuto, second=0, microsecond=0)
+        
+        # 3. DÍA DE LA SEMANA
+        dias = {"lunes":0, "martes":1, "miércoles":2, "jueves":3, "viernes":4, "sábado":5, "domingo":6}
+        for nombre, cod in dias.items():
+            if nombre in fecha_low:
+                match = re.search(r'(\d{1,2}:\d{2})', fecha_low)
+                if match:
+                    hora, minuto = map(int, match.group(1).split(":"))
+                    dias_adelante = (cod - ahora.weekday()) % 7
+                    if dias_adelante == 0: dias_adelante = 7
+                    target = ahora + timedelta(days=dias_adelante)
+                    return target.replace(hour=hora, minute=minuto, second=0, microsecond=0)
+
+        # 4. FECHA ESPECÍFICA (ej: "31 oct, 19:00")
+        meses = {
+            "ene": 1, "feb": 2, "mar": 3, "abr": 4, "may": 5, "jun": 6,
+            "jul": 7, "ago": 8, "sep": 9, "oct": 10, "nov": 11, "dic": 12
+        }
+        match_esp = re.search(r'(\d{1,2})\s([a-z]{3}).*?(\d{1,2}:\d{2})', fecha_low)
+        if match_esp:
+            dia = int(match_esp.group(1))
+            mes_txt = match_esp.group(2)
+            hora_str = match_esp.group(3)
+            if mes_txt in meses:
+                mes = meses[mes_txt]
+                año = ahora.year
+                if mes < ahora.month: año += 1
+                h, m = map(int, hora_str.split(":"))
+                return datetime(año, mes, dia, h, m)
+
+        return fecha 
+    except Exception as e:
+        return "Error formato"
+
+# --- FUNCIÓN PRINCIPAL ---
+
 def ejecutar_scraper_eventbrite():
     driver = None
     reporte = {
@@ -942,75 +1016,114 @@ def ejecutar_scraper_eventbrite():
         "inicio": datetime.now().strftime('%H:%M:%S')
     }
     
-    # --- ÁREA DE AUDITORÍA (Misma lógica que Ticketek/Eden) ---
+    # --- CONFIGURACIÓN AUDITORÍA ---
     df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link'])
 
-    def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href, col_href="Link"):
+    def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href):
         nonlocal df_rechazados
         nuevo = pd.DataFrame([{
             'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
             'Motivo': motivo, 'Linea': str(linea), 'Fuente': fuente,
-            col_href: href
+            'Link': href
         }])
         df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
 
+    date_keywords = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom', 'mañana', 'hoy', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+    
     try:
         driver = iniciar_driver()
         base_url = 'https://www.eventbrite.com.ar/d/argentina--c%C3%B3rdoba/all-events/'
         event_data = []
         seen_links = set()
-        
-        # ... (Tasa de cambio y navegación de páginas) ...
 
-        # --- DENTRO DEL LOOP DE EVENTOS ---
-        for event in events:
+        for page in range(1, 6):
+            print(f"📄 Eventbrite: Procesando página {page}...")
+            driver.get(f'{base_url}?page={page}')
+            
             try:
-                # (Extracción de name, link, paragraphs...)
-                
-                # AUDITORÍA LÍNEA 120: Datos incompletos en el card
-                if not name or not link:
-                    registrar_rechazo("Incompleto", "N/A", "N/A", "Card sin nombre o link", "120", "Eventbrite", "N/A")
+                WebDriverWait(driver, 12).until(EC.presence_of_element_located((By.TAG_NAME, 'h3')))
+                driver.execute_script("window.scrollBy(0, 1000);")
+                time.sleep(3)
+            except: 
+                print(f"Fin de paginación o error en página {page}")
+                break
+
+            events = driver.find_elements(By.CSS_SELECTOR, 'article, section.discover-horizontal-event-card, div[class*="Stack_root"]')
+            
+            for event in events:
+                try:
+                    # 1. Extracción Básica
+                    try:
+                        name_el = event.find_element(By.TAG_NAME, 'h3')
+                        name = name_el.text.strip()
+                        link = event.find_element(By.TAG_NAME, 'a').get_attribute('href')
+                    except:
+                        continue
+
+                    if not name or link in seen_links: 
+                        continue
+                    
+                    # 2. Extracción de Fecha y Locación vía párrafos
+                    paragraphs = event.find_elements(By.TAG_NAME, 'p')
+                    date_info, location = 'N/A', 'N/A'
+
+                    if paragraphs:
+                        idx_fecha = -1
+                        for i, p in enumerate(paragraphs):
+                            txt = p.text.strip().lower()
+                            if any(kw in txt for kw in date_keywords):
+                                idx_fecha = i
+                                break
+                        
+                        if idx_fecha != -1:
+                            date_info = paragraphs[idx_fecha].text.strip()
+                            if len(paragraphs) > idx_fecha + 1:
+                                location = paragraphs[idx_fecha + 1].text.strip()
+                        else:
+                            location = paragraphs[0].text.strip()
+
+                    # 3. Auditoría inicial: Datos incompletos
+                    if date_info == 'N/A' or location == 'N/A':
+                        registrar_rechazo(name, location, date_info, "Card con datos insuficientes (Fecha/Locación N/A)", "125", "Eventbrite", link)
+                        continue
+
+                    event_data.append({
+                        'Nombre': name, 'Fecha': date_info, 'Locación': location,
+                        'Precio': "Consultar", 'Origen': link
+                    })
+                    seen_links.add(link)
+                except: 
                     continue
 
-                # ... (Lógica de detección de date_info y location) ...
-
-                event_data.append({
-                    'Nombre': name, 'Fecha': date_info, 'Locación': location,
-                    'Precio': "Consultar", 'Origen': link
-                })
-                seen_links.add(link)
-            except: continue
-
-        # --- PROCESAMIENTO Y FILTRADO ---
+        # --- PROCESAMIENTO ---
         if not event_data:
-            reporte["estado"] = "Exitoso (Sin elementos encontrados)"
+            reporte["estado"] = "Exitoso (Sin eventos encontrados)"
             return reporte
 
         df_crudo = pd.DataFrame(event_data)
         
-        # AUDITORÍA LÍNEA 140: Filtrado por Locación (Keywords de hoteles)
-        keywords_locacion = ['quinto centenario', 'blas pascal', 'quorum']
+        # 4. Auditoría: Filtrado de Locación (Hoteles MICE)
+        keywords_locacion = ['quinto centenario', 'blas pascal', 'quorum', 'sheraton', 'holiday inn']
         mask_locacion = df_crudo['Locación'].str.lower().str.contains('|'.join(keywords_locacion), na=False)
         
-        # Registramos los que NO coinciden con los hoteles de interés
         df_rechazados_loc = df_crudo[~mask_locacion]
         for _, row in df_rechazados_loc.iterrows():
-            registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], "Locación no incluida en keywords (Hoteles MICE)", "140", "Eventbrite", row['Origen'])
+            registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], "Locación no coincide con Hoteles MICE", "150", "Eventbrite", row['Origen'])
 
         df_filtrado = df_crudo[mask_locacion].copy()
 
-        # AUDITORÍA LÍNEA 155: Fallo de conversión de fecha
+        # 5. Auditoría: Conversión de Fecha
         if not df_filtrado.empty:
             df_filtrado['Fecha Convertida'] = df_filtrado['Fecha'].apply(convertir_fechas)
             
-            # Si convertir_fechas devuelve el string original o "Error formato", lo rechazamos
-            mask_fecha_valida = df_filtrado['Fecha Convertida'].apply(lambda x: isinstance(x, datetime))
+            # Identificamos fallos (si devuelve string en lugar de datetime o "Error formato")
+            mask_fecha_ok = df_filtrado['Fecha Convertida'].apply(lambda x: isinstance(x, datetime))
             
-            df_rechazados_fecha = df_filtrado[~mask_fecha_valida]
+            df_rechazados_fecha = df_filtrado[~mask_fecha_ok]
             for _, row in df_rechazados_fecha.iterrows():
-                registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], f"No se pudo parsear fecha: {row['Fecha']}", "155", "Eventbrite", row['Origen'])
+                registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], f"Fallo en conversión de fecha: {row['Fecha']}", "165", "Eventbrite", row['Origen'])
             
-            df_final_data = df_filtrado[mask_fecha_valida].copy()
+            df_final_data = df_filtrado[mask_fecha_ok].copy()
 
             if not df_final_data.empty:
                 df_final = pd.DataFrame({
@@ -1025,21 +1138,27 @@ def ejecutar_scraper_eventbrite():
                 subir_a_google_sheets(df_final, 'base_h_scrp_eventbrite', 'Hoja 1')
                 reporte["filas_procesadas"] = len(df_final)
                 reporte["estado"] = "Exitoso"
+            else:
+                reporte["estado"] = "Exitoso (Sin eventos válidos tras filtros)"
 
         # --- SUBIDA FINAL DE AUDITORÍA ---
         if not df_rechazados.empty:
-            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Hoja 1')
-            print('Actualización final auditoría subida')
+            # Subimos a la pestaña 'Eventbrite' del documento 'Rechazados'
+            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventbrite')
+            print(f"✅ Auditoría Eventbrite: {len(df_rechazados)} registros subidos.")
 
     except Exception as e:
+        print(f"❌ Error Crítico Eventbrite: {e}")
         reporte["estado"] = "Fallido"
         reporte["error"] = str(e)
     finally:
-        if driver: driver.quit()
+        if driver:
+            driver.quit()
+        reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
-# Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
