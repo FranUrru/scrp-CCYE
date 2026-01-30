@@ -493,7 +493,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
                         combined_df[col] = combined_df[col].astype(str)
 
                 # 3. Lógica de duplicados
-                columnas_posibles = ['Eventos', 'Nombre', 'title', 'Lugar', 'Locación', 'lugar', 'Origen', 'href', 'Fecha Convertida', 'Comienza']
+                columnas_posibles = ['Eventos', 'Nombre', 'title', 'Lugar', 'Locación', 'lugar', 'Origen', 'href', 'Fecha Convertida', 'Comienza','fuente']
                 subset_duplicados = [c for c in columnas_posibles if c in combined_df.columns]
                 
                 if subset_duplicados:
@@ -1030,6 +1030,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
