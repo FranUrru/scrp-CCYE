@@ -536,6 +536,16 @@ def ejecutar_scraper_ticketek():
         "error": None,
         "inicio": datetime.now().strftime('%H:%M:%S')
     }
+    # DataFrame para registrar descartes
+    df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente'])
+
+    def registrar_rechazo(nombre, loc, fecha, motivo, linea):
+        nonlocal df_rechazados
+        nuevo = pd.DataFrame([{
+            'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
+            'Motivo': motivo, 'Linea': str(linea), 'Fuente': 'Ticketek'
+        }])
+        df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
     
     try:
         driver = iniciar_driver()
@@ -558,6 +568,19 @@ def ejecutar_scraper_ticketek():
 
         # 3. Procesar detalles de cada link
         df_artists2 = process_hrefs(driver, df_artists)
+
+        #3.1 Auditoría
+        df_con_errores = df_artists2[df_artists2['error'].notna()]
+        
+        for _, row in df_con_errores.iterrows():
+            motivo_error = f"Error de carga/navegación: {row['error']}"
+            registrar_rechazo(
+                nombre=row['title'], 
+                loc="N/A", 
+                fecha="N/A", 
+                motivo=motivo_error, 
+                linea="232"
+            )
         
         # 4. Limpieza y Reordenamiento
         df_artists2_cleaned = clean_data(df_artists2.copy())
@@ -576,6 +599,8 @@ def ejecutar_scraper_ticketek():
         subir_a_google_sheets(df_final,'Ticketek historico (Auto)','Hoja 1')
         reporte["estado"] = "Exitoso"
         reporte["filas_procesadas"] = len(df_final)
+        if not df_rechazados.empty:
+            subir_a_google_sheets(df_rechazados, 'Log_Rechazados_General', 'Ticketek')
     except Exception as e:
         reporte["estado"] = "Fallido"
         reporte["error"] = str(e)
@@ -833,7 +858,7 @@ def ejecutar_scraper_eden():
         if driver: driver.quit()
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
-ejecutar_scraper_eden()
+#ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1029,7 +1054,8 @@ def ejecutar_scraper_eventbrite():
 
 # Ejecutar
 
-ejecutar_scraper_eventbrite()
+#ejecutar_scraper_eventbrite()
+
 
 
 
