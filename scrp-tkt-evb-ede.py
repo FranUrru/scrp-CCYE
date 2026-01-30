@@ -599,8 +599,10 @@ def ejecutar_scraper_ticketek():
         subir_a_google_sheets(df_final,'Ticketek historico (Auto)','Hoja 1')
         reporte["estado"] = "Exitoso"
         reporte["filas_procesadas"] = len(df_final)
+        print(f"⚠️ Se registraron {len(df_con_errores)} fallos de carga en la auditoría.")
         if not df_rechazados.empty:
-            subir_a_google_sheets(df_rechazados, 'Log_Rechazados_General', 'Ticketek')
+            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Hoja 1')
+            print("Rechazados Ticketek subidos exitosamente")
     except Exception as e:
         reporte["estado"] = "Fallido"
         reporte["error"] = str(e)
@@ -1055,6 +1057,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 #ejecutar_scraper_eventbrite()
+
 
 
 
