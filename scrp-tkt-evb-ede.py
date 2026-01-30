@@ -536,26 +536,23 @@ def ejecutar_scraper_ticketek():
         "error": None,
         "inicio": datetime.now().strftime('%H:%M:%S')
     }
-    # DataFrame para registrar descartes
+    
+    # Este DataFrame vive en el ámbito de ejecutar_scraper_ticketek
     df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente'])
 
-def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href, col_href="Link"):
-    """
-    nombre, loc, fecha, motivo, linea, fuente: Datos del error.
-    href: El enlace al evento.
-    col_href: El nombre que quieres que tenga la columna del link en el Sheets de Rechazados.
-    """
-    nonlocal df_rechazados
-    nuevo = pd.DataFrame([{
-        'Nombre': nombre, 
-        'Locación': loc, 
-        'Fecha': fecha,
-        'Motivo': motivo, 
-        'Linea': str(linea), 
-        'Fuente': fuente,
-        col_href: href  # Agrega la columna dinámica con el link
-    }])
-    df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
+    # Esta función DEBE estar aquí adentro (un nivel de tabulación más)
+    def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href, col_href="Link"):
+        nonlocal df_rechazados # Ahora sí puede encontrar la variable de arriba
+        nuevo = pd.DataFrame([{
+            'Nombre': nombre, 
+            'Locación': loc, 
+            'Fecha': fecha,
+            'Motivo': motivo, 
+            'Linea': str(linea), 
+            'Fuente': fuente,
+            col_href: href
+        }])
+        df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
     
     try:
         driver = iniciar_driver()
@@ -1104,6 +1101,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 #ejecutar_scraper_eventbrite()
+
 
 
 
