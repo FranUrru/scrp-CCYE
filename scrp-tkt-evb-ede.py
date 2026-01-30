@@ -585,7 +585,7 @@ def ejecutar_scraper_ticketek():
             driver.quit()
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
-#ejecutar_scraper_ticketek()
+ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -833,7 +833,7 @@ def ejecutar_scraper_eden():
         if driver: driver.quit()
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
-#ejecutar_scraper_eden()
+ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1030,6 +1030,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 ejecutar_scraper_eventbrite()
+
 
 
 
