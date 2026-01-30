@@ -579,11 +579,27 @@ def ejecutar_scraper_ticketek():
                 loc="N/A", 
                 fecha="N/A", 
                 motivo=motivo_error, 
-                linea="232"
+                linea="570"
             )
         
         # 4. Limpieza y Reordenamiento
         df_artists2_cleaned = clean_data(df_artists2.copy())
+        #4.1 Auditoría
+        mask_sin_fecha = (df_artists2_cleaned['date'].isna()) & (df_artists2_cleaned['error'].isna())
+        df_fallos_fecha = df_artists2_cleaned[mask_sin_fecha]
+        
+        for _, row in df_fallos_fecha.iterrows():
+            # Guardamos la descripción completa para auditoría técnica
+            descripcion_completa = row['description'] if row['description'] else "SIN DESCRIPCIÓN DISPONIBLE"
+            
+            registrar_rechazo(
+                nombre=row['title'], 
+                loc=row['lugar'] if row['lugar'] else "No detectado", 
+                fecha="No encontrada", 
+                # El motivo contendrá el texto íntegro para que analices tu Regex
+                motivo=f"FALLO DE EXTRACCIÓN de fecha. Texto analizado: {descripcion_completa}", 
+                linea="586"
+            )
         df_artists2_cleaned['lugar'] = df_artists2_cleaned['lugar'].apply(limpiar_lugar)
         
         df_final = reordenar_y_agregar_columnas(df_artists2_cleaned.copy())
@@ -1057,6 +1073,7 @@ def ejecutar_scraper_eventbrite():
 # Ejecutar
 
 #ejecutar_scraper_eventbrite()
+
 
 
 
