@@ -10,26 +10,6 @@ def log(mensaje):
 # Buffer para acumular los prints
 log_buffer = io.StringIO()
 
-def enviar_log_gmail_api(cuerpo_log, estado):
-    # Usamos las mismas credenciales que ya tienes para gspread
-    # (Suponiendo que 'creds' es tu objeto de credenciales de Google)
-    try:
-        service = build('gmail', 'v1', credentials=creds)
-        
-        message = EmailMessage()
-        message.set_content(cuerpo_log)
-        message['To'] = 'tu_correo@gmail.com'
-        message['From'] = 'tu_correo@gmail.com'
-        message['Subject'] = f"Reporte Scraper Eventbrite: {estado}"
-
-        # Codificación requerida por la API de Gmail
-        encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-        create_message = {'raw': encoded_message}
-        
-        service.users().messages().send(userId="me", body=create_message).execute()
-        print("📧 Log enviado exitosamente vía Gmail API.")
-    except Exception as e:
-        print(f"❌ No se pudo enviar el mail por API: {e}")
 
 def click_load_more_until_disappears(driver):
     """
@@ -562,16 +542,6 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
             if intentos < retries:
                 time.sleep(5)
             
-    return False
-
-        except Exception as e:
-            intentos += 1
-            log(f"⚠️ Intento {intentos} fallido para {nombre_tabla}: {e}")
-            if intentos < retries: 
-                time.sleep(5)
-            else: 
-                # Aquí es donde el error "sube" al reporte del scraper
-                raise Exception(f"Fallo definitivo en Google Sheets: {str(e)}")
     return False
 
 def ejecutar_scraper_ticketek():
@@ -1295,6 +1265,7 @@ contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
