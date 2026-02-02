@@ -1,3 +1,36 @@
+import io
+import base64
+from email.message import EmailMessage
+from googleapiclient.discovery import build
+def log(mensaje):
+    timestamp = datetime.now().strftime('%H:%M:%S')
+    linea = f"[{timestamp}] {mensaje}"
+    print(linea)
+    log_buffer.write(linea + "\n")
+# Buffer para acumular los prints
+log_buffer = io.StringIO()
+
+def enviar_log_gmail_api(cuerpo_log, estado):
+    # Usamos las mismas credenciales que ya tienes para gspread
+    # (Suponiendo que 'creds' es tu objeto de credenciales de Google)
+    try:
+        service = build('gmail', 'v1', credentials=creds)
+        
+        message = EmailMessage()
+        message.set_content(cuerpo_log)
+        message['To'] = 'tu_correo@gmail.com'
+        message['From'] = 'tu_correo@gmail.com'
+        message['Subject'] = f"Reporte Scraper Eventbrite: {estado}"
+
+        # Codificación requerida por la API de Gmail
+        encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        create_message = {'raw': encoded_message}
+        
+        service.users().messages().send(userId="me", body=create_message).execute()
+        print("📧 Log enviado exitosamente vía Gmail API.")
+    except Exception as e:
+        print(f"❌ No se pudo enviar el mail por API: {e}")
+
 def click_load_more_until_disappears(driver):
     """
     Hace clic en el botón 'Cargar más' repetidamente hasta que desaparece.
@@ -16,19 +49,19 @@ def click_load_more_until_disappears(driver):
                 # Hace clic en el botón
                 load_more_button.click()
                 time.sleep(5)  # Espera un poco para que se carguen más elementos
-                print("Botón 'Cargar más' clickeado.")
+                log("Botón 'Cargar más' clickeado.")
 
             except NoSuchElementException:
                 # Si el botón ya no existe, salimos del bucle
-                print("El botón 'Cargar más' ya no está presente.")
+                log("El botón 'Cargar más' ya no está presente.")
                 break  # Sale del bucle while
 
             except Exception as e:
                 # Captura otras excepciones (por ejemplo, TimeoutException si el botón tarda en aparecer)
-                print(f"Error al hacer clic en el botón 'Cargar más': {e}")
+                log(f"Error al hacer clic en el botón 'Cargar más': {e}")
                 break  # Sale del bucle while
     except Exception as e:
-        print(f"Error general: {e}")
+        log(f"Error general: {e}")
 
 
 def extract_artist_data(soup):
@@ -111,7 +144,7 @@ def extract_details_from_location(driver, href):
         details = {'price': None, 'lugar': None, 'description': None}
 
         # --- 1. LUGAR (Enfoque por URL Robusto) ---
-        print(f"Procesando URL: {href}")
+        log(f"Procesando URL: {href}")
         
         # Eliminamos posibles barras al final y dividimos
         # Esto funciona tanto para URLs completas como para paths
@@ -153,7 +186,7 @@ def extract_details_from_location(driver, href):
         return details
 
     except Exception as e:
-        print(f"Error en extracción: {e}")
+        log(f"Error en extracción: {e}")
         return {'error': str(e), 'price': None, 'lugar': None, 'description': None}
 import time
 from bs4 import BeautifulSoup
@@ -190,10 +223,10 @@ def clean_data(df):
                 if price2:
                     price2_int = int(price2)
                     total_price = price1_int + price2_int
-                    print(f"Precio 1: {price1_int}, Precio 2: {price2_int}, Suma: {total_price}")
+                    log(f"Precio 1: {price1_int}, Precio 2: {price2_int}, Suma: {total_price}")
                     total_prices.append(total_price)
                 else:
-                    print(f"Precio: {price1_int}")
+                    log(f"Precio: {price1_int}")
                     total_prices.append(price1_int)
             return total_prices
         return None
@@ -204,7 +237,7 @@ def clean_data(df):
         """
         if price_list:
             avg = sum(price_list) / len(price_list)
-            print(f"Lista de precios: {price_list}, Promedio: {avg}")
+            log(f"Lista de precios: {price_list}, Promedio: {avg}")
             return avg
         return None
 
@@ -324,7 +357,7 @@ def process_hrefs(driver, df):
 
             except Exception as e:
 
-                print(f"Error processing {full_href}: {e}")
+                log(f"Error processing {full_href}: {e}")
 
                 prices.append(None)
 
@@ -452,14 +485,14 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
     secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
     # Verificación de seguridad rápida
     if secreto_json is None:
-        print("🔴 DIAGNÓSTICO: La variable os.environ no encuentra 'GCP_SERVICE_ACCOUNT_JSON'. Revisa el YAML.")
+        log("🔴 DIAGNÓSTICO: La variable os.environ no encuentra 'GCP_SERVICE_ACCOUNT_JSON'. Revisa el YAML.")
         return False
     
     if len(secreto_json.strip()) == 0:
-        print("🔴 DIAGNÓSTICO: La variable existe pero está VACÍA. Revisa el valor en GitHub Secrets.")
+        log("🔴 DIAGNÓSTICO: La variable existe pero está VACÍA. Revisa el valor en GitHub Secrets.")
         return False
 
-    print(f"🟢 DIAGNÓSTICO: Secreto encontrado. Empieza con: {secreto_json[0]} y termina con: {secreto_json[-1]}")
+    log(f"🟢 DIAGNÓSTICO: Secreto encontrado. Empieza con: {secreto_json[0]} y termina con: {secreto_json[-1]}")
     
     intentos = 0
     while intentos < retries:
@@ -511,12 +544,12 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
                 sheet.update([combined_df.columns.values.tolist()] + valores_finales, 
                              value_input_option='USER_ENTERED')
                 
-                print(f"✅ Hoja '{nombre_tabla}' actualizada con éxito.")
+                log(f"✅ Hoja '{nombre_tabla}' actualizada con éxito.")
                 return True 
 
         except Exception as e:
             intentos += 1
-            print(f"⚠️ Intento {intentos} fallido para {nombre_tabla}: {e}")
+            log(f"⚠️ Intento {intentos} fallido para {nombre_tabla}: {e}")
             if intentos < retries: 
                 time.sleep(5)
             else: 
@@ -570,7 +603,7 @@ def ejecutar_scraper_ticketek():
         df_artists = extract_artist_data(soup)
         
         if df_artists.empty:
-            print("No se encontraron artistas. Finalizando tarea Ticketek.")
+            log("No se encontraron artistas. Finalizando tarea Ticketek.")
             return
 
         # 3. Procesar detalles de cada link
@@ -643,14 +676,14 @@ def ejecutar_scraper_ticketek():
         subir_a_google_sheets(df_final,'Ticketek historico (Auto)','Hoja 1')
         reporte["estado"] = "Exitoso"
         reporte["filas_procesadas"] = len(df_final)
-        print(f"⚠️ Se registraron {len(df_con_errores)} fallos de carga en la auditoría.")
+        log(f"⚠️ Se registraron {len(df_con_errores)} fallos de carga en la auditoría.")
         if not df_rechazados.empty:
             subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
-            print("Rechazados Ticketek subidos exitosamente")
+            log("Rechazados Ticketek subidos exitosamente")
     except Exception as e:
         reporte["estado"] = "Fallido"
         reporte["error"] = str(e)
-        print(f"❌ Error en Ticketek: {e}")
+        log(f"❌ Error en Ticketek: {e}")
     finally:
         if driver:
             driver.quit()
@@ -1037,7 +1070,7 @@ def ejecutar_scraper_eventbrite():
         seen_links = set()
 
         for page in range(1, 6):
-            print(f"📄 Eventbrite: Procesando página {page}...")
+            log(f"📄 Eventbrite: Procesando página {page}...")
             driver.get(f'{base_url}?page={page}')
             
             try:
@@ -1050,7 +1083,7 @@ def ejecutar_scraper_eventbrite():
                     driver.execute_script("window.scrollBy(0, 400);")
                     time.sleep(0.5)
             except Exception as e: 
-                print(f"⚠️ No se detectaron cards en página {page}. Posible cambio de diseño o fin.")
+                log(f"⚠️ No se detectaron cards en página {page}. Posible cambio de diseño o fin.")
                 break
 
             events = driver.find_elements(By.CSS_SELECTOR, 'article, section.discover-horizontal-event-card, div[class*="Stack_root"]')
@@ -1150,10 +1183,10 @@ def ejecutar_scraper_eventbrite():
         if not df_rechazados.empty:
             # Subimos a la pestaña 'Eventbrite' del documento 'Rechazados'
             subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
-            print(f"✅ Auditoría Eventbrite: {len(df_rechazados)} registros subidos.")
+            log(f"✅ Auditoría Eventbrite: {len(df_rechazados)} registros subidos.")
 
     except Exception as e:
-        print(f"❌ Error Crítico Eventbrite: {e}")
+        log(f"❌ Error Crítico Eventbrite: {e}")
         reporte["estado"] = "Fallido"
         reporte["error"] = str(e)
         if driver:
@@ -1170,15 +1203,15 @@ resultado_final = None
 
 for i in range(1, intentos_maximos + 1):
     try:
-        print(f"🚀 Iniciando Eventbrite - Intento {i} de {intentos_maximos}...")
+        log(f"🚀 Iniciando Eventbrite - Intento {i} de {intentos_maximos}...")
         resultado_final = ejecutar_scraper_eventbrite()
         
         # Si llega aquí, es que funcionó (no hubo raise)
-        print(f"✅ Intento {i} completado con éxito.")
+        log(f"✅ Intento {i} completado con éxito.")
         break 
 
     except Exception as e:
-        print(f"❌ Error en intento {i}: {e}")
+        log(f"❌ Error en intento {i}: {e}")
         
         # Guardamos un reporte provisional por si este es el último fallo
         resultado_final = {
@@ -1190,14 +1223,46 @@ for i in range(1, intentos_maximos + 1):
         }
 
         if i < intentos_maximos:
-            print(f"⚠️ Reintentando en 10 segundos...")
+            log(f"⚠️ Reintentando en 10 segundos...")
             time.sleep(10)
         else:
-            print("🛑 Se agotaron todos los intentos.")
+            log("🛑 Se agotaron todos los intentos.")
 
 # Ahora, pase lo que pase, resultado_final contiene el diccionario
-print(f"Estado final registrado: {resultado_final['estado']}")
+log(f"Estado final registrado: {resultado_final['estado']}")
 # Aquí puedes usar resultado_final para subirlo a otro lado o mostrarlo
+import base64
+from email.message import EmailMessage
+from googleapiclient.discovery import build
+def enviar_log_gmail_api(cuerpo_log, estado, lista_destinatarios):
+    """Envía el log acumulado a múltiples correos usando Gmail API."""
+    try:
+        # Reutilizamos la lógica de tus credenciales
+        info_claves = json.loads(os.environ.get('GCP_SERVICE_ACCOUNT_JSON'))
+        scope_gmail = ["https://www.googleapis.com/auth/gmail.send"]
+        
+        creds = service_account.Credentials.from_service_account_info(
+            info_claves, scopes=scope_gmail
+        )
+        
+        # Si usas Google Workspace, a veces requiere delegate_to='tu_user@dominio.com'
+        # build('gmail', 'v1', credentials=creds)
+        service = build('gmail', 'v1', credentials=creds)
+
+        for destinatario in lista_destinatarios:
+            message = EmailMessage()
+            message.set_content(cuerpo_log)
+            message['To'] = destinatario
+            message['From'] = "Scraper Automático <hojas-calculo-ccye@proyecto-automatizacion-ccye.iam.gserviceaccount.com>" # El nombre que aparecerá
+            message['Subject'] = f"REPORTE SCRP AGENDA"
+
+destinatarios=['furrutia@cordobaacelera.com.ar']
+# Obtenemos todo el texto acumulado en el log_buffer
+contenido_final_log = log_buffer.getvalue()
+
+# Llamamos a la función con la lista de correos
+enviar_log_gmail_api(contenido_final_log, resultado_final_status, DESTINATARIOS)
+
 
 
 
