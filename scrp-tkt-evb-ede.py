@@ -425,7 +425,7 @@ import gspread
 from datetime import datetime
 from urllib.parse import quote
 from bs4 import BeautifulSoup
-from oauth2client.service_account import ServiceAccountCrtials
+from oauth2client.service_account import ServiceAccountCredentials
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
@@ -1266,6 +1266,7 @@ contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
