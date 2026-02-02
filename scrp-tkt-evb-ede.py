@@ -820,6 +820,7 @@ def procesar_dataframe_complejo(df, columna_fecha='Fecha'):
 
 def ejecutar_scraper_eden():
     import json
+    import os
     driver = None
     reporte = {
         "nombre": "Eden Entradas",
@@ -1294,6 +1295,7 @@ contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
