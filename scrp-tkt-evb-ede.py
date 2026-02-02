@@ -481,71 +481,88 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
     import pandas as pd
     import os
     import json
+    import gspread
     from google.oauth2 import service_account
+    
     secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
-    # Verificación de seguridad rápida
     if secreto_json is None:
         log("🔴 DIAGNÓSTICO: La variable os.environ no encuentra 'GCP_SERVICE_ACCOUNT_JSON'. Revisa el YAML.")
         return False
     
-    if len(secreto_json.strip()) == 0:
-        log("🔴 DIAGNÓSTICO: La variable existe pero está VACÍA. Revisa el valor en GitHub Secrets.")
-        return False
-
-    log(f"🟢 DIAGNÓSTICO: Secreto encontrado. Empieza con: {secreto_json[0]} y termina con: {secreto_json[-1]}")
-    
     intentos = 0
     while intentos < retries:
         try:
-            scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-            info_claves = json.loads(os.environ.get('GCP_SERVICE_ACCOUNT_JSON'))
-            creds = service_account.Credentials.from_service_account_info(info_claves, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+            info_claves = json.loads(secreto_json)
+            creds = service_account.Credentials.from_service_account_info(
+                info_claves, 
+                scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            )
             client = gspread.authorize(creds)
             
             sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
             existing_data = sheet.get_all_values()
             
-            # Limpieza inicial del DF que entra
             df_entrada = df.copy()
+            conteo_reales = 0
 
+            # --- LÓGICA DE DETECCIÓN DE FILAS NUEVAS ---
             if len(existing_data) > 1:
                 existing_df = pd.DataFrame(existing_data[1:], columns=existing_data[0])
+                
+                # Identificamos la columna que sirve como ID único (el link)
+                id_col = next((c for c in ['Origen', 'href', 'Link'] if c in df_entrada.columns), None)
+                
+                if id_col and id_col in existing_df.columns:
+                    # Filtramos filas de entrada que NO están en la base actual
+                    nuevas_filas_df = df_entrada[~df_entrada[id_col].isin(existing_df[id_col])]
+                    conteo_reales = len(nuevas_filas_df)
+                else:
+                    conteo_reales = len(df_entrada) # Fallback si no hay columna ID
+
                 combined_df = pd.concat([existing_df, df_entrada], ignore_index=True)
             else:
                 combined_df = df_entrada
+                conteo_reales = len(df_entrada)
 
             if not combined_df.empty:
-                # --- LIMPIEZA CRÍTICA ANTES DE SUBIR ---
-                # 1. Reemplazar Infinitos por NaN y luego todos los NaN por string vacío
-                # Esto elimina el error "Out of range float values"
+                # 1. Limpieza de datos no compatibles con JSON/Sheets
                 combined_df = combined_df.replace([np.inf, -np.inf], np.nan).fillna("")
                 
-                # 2. Asegurar que no haya objetos Timestamp de Python (pasarlos a string)
                 for col in combined_df.columns:
                     if pd.api.types.is_datetime64_any_dtype(combined_df[col]):
                         combined_df[col] = combined_df[col].astype(str)
 
-                # 3. Lógica de duplicados
-                columnas_posibles = ['Eventos', 'Nombre', 'title', 'Lugar', 'Locación', 'lugar', 'Origen', 'href', 'Fecha Convertida', 'Comienza','fuente']
+                # 2. Eliminar duplicados finales (mantenemos el último encontrado)
+                columnas_posibles = ['Eventos', 'Nombre', 'title', 'Lugar', 'Locación', 'lugar', 'Origen', 'href', 'Fecha Convertida', 'Comienza', 'fuente']
                 subset_duplicados = [c for c in columnas_posibles if c in combined_df.columns]
                 
                 if subset_duplicados:
                     combined_df = combined_df.drop_duplicates(subset=subset_duplicados, keep='last')
                 
-                # 4. Ordenar
+                # 3. Ordenar por fecha de captura si la columna existe
                 col_fecha = next((c for c in ['fecha de carga', 'Fecha Scrp'] if c in combined_df.columns), None)
                 if col_fecha:
                     combined_df = combined_df.sort_values(by=col_fecha, ascending=False)
 
-                # 5. Envío a Google
+                # 4. Actualizar la hoja
                 sheet.clear()
-                # Convertimos todo a lista de listas y aseguramos que cada valor sea compatible con JSON
-                valores_finales = combined_df.values.tolist()
-                sheet.update([combined_df.columns.values.tolist()] + valores_finales, 
-                             value_input_option='USER_ENTERED')
+                valores_finales = [combined_df.columns.values.tolist()] + combined_df.values.tolist()
+                sheet.update(valores_finales, value_input_option='USER_ENTERED')
                 
                 log(f"✅ Hoja '{nombre_tabla}' actualizada con éxito.")
+                log(f"📊 Se agregaron {conteo_reales} filas nuevas en {nombre_tabla}")
                 return True 
+            else:
+                log(f"⚠️ El DataFrame resultante está vacío para {nombre_tabla}")
+                return False
+        
+        except Exception as e:
+            intentos += 1
+            log(f"⚠️ Error al subir a Sheets (Intento {intentos}/{retries}): {e}")
+            if intentos < retries:
+                time.sleep(5)
+            
+    return False
 
         except Exception as e:
             intentos += 1
@@ -1278,6 +1295,7 @@ contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
