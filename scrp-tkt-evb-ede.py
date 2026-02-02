@@ -1041,11 +1041,16 @@ def ejecutar_scraper_eventbrite():
             driver.get(f'{base_url}?page={page}')
             
             try:
-                WebDriverWait(driver, 12).until(EC.presence_of_element_located((By.TAG_NAME, 'h3')))
-                driver.execute_script("window.scrollBy(0, 1000);")
-                time.sleep(3)
-            except: 
-                print(f"Fin de paginación o error en página {page}")
+                # Esperamos a que aparezca el contenedor de las cards, no solo el h3
+                WebDriverWait(driver, 15).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, 'section.event-card-details'))
+                )
+                # Scroll lento para disparar el lazy loading de Eventbrite
+                for _ in range(3):
+                    driver.execute_script("window.scrollBy(0, 400);")
+                    time.sleep(0.5)
+            except Exception as e: 
+                print(f"⚠️ No se detectaron cards en página {page}. Posible cambio de diseño o fin.")
                 break
 
             events = driver.find_elements(By.CSS_SELECTOR, 'article, section.discover-horizontal-event-card, div[class*="Stack_root"]')
@@ -1193,6 +1198,7 @@ for i in range(1, intentos_maximos + 1):
 # Ahora, pase lo que pase, resultado_final contiene el diccionario
 print(f"Estado final registrado: {resultado_final['estado']}")
 # Aquí puedes usar resultado_final para subirlo a otro lado o mostrarlo
+
 
 
 
