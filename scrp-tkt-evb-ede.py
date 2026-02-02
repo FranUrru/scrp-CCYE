@@ -29,16 +29,16 @@ def click_load_more_until_disappears(driver):
                 # Hace clic en el botón
                 load_more_button.click()
                 time.sleep(5)  # Espera un poco para que se carguen más elementos
-                log("Botón 'Cargar más' clickeado.")
+                print("Botón 'Cargar más' clickeado.")
 
             except NoSuchElementException:
                 # Si el botón ya no existe, salimos del bucle
-                log("El botón 'Cargar más' ya no está presente.")
+                print("El botón 'Cargar más' ya no está presente.")
                 break  # Sale del bucle while
 
             except Exception as e:
                 # Captura otras excepciones (por ejemplo, TimeoutException si el botón tarda en aparecer)
-                log(f"Error al hacer clic en el botón 'Cargar más': {e}")
+                print(f"Error al hacer clic en el botón 'Cargar más': {e}")
                 break  # Sale del bucle while
     except Exception as e:
         log(f"Error general: {e}")
@@ -124,7 +124,7 @@ def extract_details_from_location(driver, href):
         details = {'price': None, 'lugar': None, 'description': None}
 
         # --- 1. LUGAR (Enfoque por URL Robusto) ---
-        log(f"Procesando URL: {href}")
+        print(f"Procesando URL: {href}")
         
         # Eliminamos posibles barras al final y dividimos
         # Esto funciona tanto para URLs completas como para paths
@@ -206,7 +206,7 @@ def clean_data(df):
                     #log(f"Precio 1: {price1_int}, Precio 2: {price2_int}, Suma: {total_price}")
                     total_prices.append(total_price)
                 else:
-                    log(f"Precio: {price1_int}")
+                    print:f"Precio: {price1_int}")
                     total_prices.append(price1_int)
             return total_prices
         return None
@@ -466,7 +466,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
     
     secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
     if secreto_json is None:
-        log("🔴 DIAGNÓSTICO: La variable os.environ no encuentra 'GCP_SERVICE_ACCOUNT_JSON'. Revisa el YAML.")
+        print("🔴 DIAGNÓSTICO: La variable os.environ no encuentra 'GCP_SERVICE_ACCOUNT_JSON'. Revisa el YAML.")
         return False
     
     intentos = 0
@@ -1057,7 +1057,7 @@ def ejecutar_scraper_eventbrite():
         seen_links = set()
 
         for page in range(1, 6):
-            log(f"📄 Eventbrite: Procesando página {page}...")
+            print(f"📄 Eventbrite: Procesando página {page}...")
             driver.get(f'{base_url}?page={page}')
             
             try:
@@ -1070,7 +1070,7 @@ def ejecutar_scraper_eventbrite():
                     driver.execute_script("window.scrollBy(0, 400);")
                     time.sleep(0.5)
             except Exception as e: 
-                log(f"⚠️ No se detectaron cards en página {page}. Posible cambio de diseño o fin.")
+                print(f"⚠️ No se detectaron cards en página {page}. Posible cambio de diseño o fin.")
                 break
 
             events = driver.find_elements(By.CSS_SELECTOR, 'article, section.discover-horizontal-event-card, div[class*="Stack_root"]')
@@ -1190,7 +1190,7 @@ resultado_final = None
 
 for i in range(1, intentos_maximos + 1):
     try:
-        log(f"🚀 Iniciando Eventbrite - Intento {i} de {intentos_maximos}...")
+        print(f"🚀 Iniciando Eventbrite - Intento {i} de {intentos_maximos}...")
         resultado_final = ejecutar_scraper_eventbrite()
         
         # Si llega aquí, es que funcionó (no hubo raise)
@@ -1198,7 +1198,7 @@ for i in range(1, intentos_maximos + 1):
         break 
 
     except Exception as e:
-        log(f"❌ Error en intento {i}: {e}")
+        print(f"❌ Error en intento {i}: {e}")
         
         # Guardamos un reporte provisional por si este es el último fallo
         resultado_final = {
@@ -1210,13 +1210,13 @@ for i in range(1, intentos_maximos + 1):
         }
 
         if i < intentos_maximos:
-            log(f"⚠️ Reintentando en 10 segundos...")
+            print(f"⚠️ Reintentando en 10 segundos...")
             time.sleep(10)
         else:
-            log("🛑 Se agotaron todos los intentos.")
+            log("🛑 Fallo en eventbrite (Intentos agotados)")
 
 # Ahora, pase lo que pase, resultado_final contiene el diccionario
-log(f"Estado final registrado: {resultado_final['estado']}")
+print(f"Estado final registrado: {resultado_final['estado']}")
 # Aquí puedes usar resultado_final para subirlo a otro lado o mostrarlo
 import smtplib
 from email.mime.text import MIMEText
@@ -1265,6 +1265,7 @@ contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
