@@ -1158,7 +1158,7 @@ def ejecutar_scraper_eventbrite():
         if driver:
             driver.quit()
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
-        return reporte
+    return reporte
 
 intentos_maximos = 3
 resultado_final = None
@@ -1168,24 +1168,31 @@ for i in range(1, intentos_maximos + 1):
         print(f"🚀 Iniciando Eventbrite - Intento {i} de {intentos_maximos}...")
         resultado_final = ejecutar_scraper_eventbrite()
         
-        # Si llegamos aquí, la función devolvió un reporte (éxito)
+        # Si llega aquí, es que funcionó (no hubo raise)
         print(f"✅ Intento {i} completado con éxito.")
-        break  # <--- SALE DEL BUCLE SOLO SI NO HUBO ERROR
+        break 
 
     except Exception as e:
-        # Aquí capturamos el ValueError("No se encontraron datos...") 
-        # o cualquier error del driver.
         print(f"❌ Error en intento {i}: {e}")
         
+        # Guardamos un reporte provisional por si este es el último fallo
+        resultado_final = {
+            "nombre": "Eventbrite",
+            "estado": "Fallido definitivamente",
+            "error": str(e),
+            "filas_procesadas": 0,
+            "inicio": datetime.now().strftime('%H:%M:%S') # O la hora que prefieras
+        }
+
         if i < intentos_maximos:
             print(f"⚠️ Reintentando en 10 segundos...")
             time.sleep(10)
         else:
-            print("🛑 Se agotaron todos los intentos. El proceso falló definitivamente.")
-            resultado_final = {"estado": "Fallido", "error": str(e)}
+            print("🛑 Se agotaron todos los intentos.")
 
-# Este print va FUERA del for
-print(f"Estado final del proceso: {resultado_final.get('estado', 'Desconocido')}")
+# Ahora, pase lo que pase, resultado_final contiene el diccionario
+print(f"Estado final registrado: {resultado_final['estado']}")
+# Aquí puedes usar resultado_final para subirlo a otro lado o mostrarlo
 
 
 
