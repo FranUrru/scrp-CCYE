@@ -663,10 +663,10 @@ def ejecutar_scraper_ticketek():
         subir_a_google_sheets(df_final,'Ticketek historico (Auto)','Hoja 1')
         reporte["estado"] = "Exitoso"
         reporte["filas_procesadas"] = len(df_final)
-        log(f"⚠️ Se registraron {len(df_con_errores)} fallos de carga en la auditoría.")
+        print(f"⚠️ Se registraron {len(df_con_errores)} fallos de carga en la auditoría.")
         if not df_rechazados.empty:
             subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
-            log("Rechazados Ticketek subidos exitosamente")
+            print("Rechazados Ticketek subidos exitosamente")
     except Exception as e:
         reporte["estado"] = "Fallido"
         reporte["error"] = str(e)
@@ -676,6 +676,7 @@ def ejecutar_scraper_ticketek():
             driver.quit()
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
+log('TICKETEK')
 ejecutar_scraper_ticketek()
 
 ###########################################################################
@@ -971,6 +972,8 @@ def ejecutar_scraper_eden():
     finally:
         if driver: driver.quit()
         return reporte
+log('')
+log('EDÉN')
 ejecutar_scraper_eden()
 
 ##################################################################################################################
@@ -1194,7 +1197,7 @@ def ejecutar_scraper_eventbrite():
         if not df_rechazados.empty:
             # Subimos a la pestaña 'Eventbrite' del documento 'Rechazados'
             subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
-            log(f"✅ Auditoría Eventbrite: {len(df_rechazados)} registros subidos.")
+            print(f"✅ Auditoría Eventbrite: {len(df_rechazados)} registros subidos.")
 
     except Exception as e:
         print(f"❌ Error Crítico Eventbrite: {e}")
@@ -1211,14 +1214,15 @@ def ejecutar_scraper_eventbrite():
 
 intentos_maximos = 3
 resultado_final = None
-
+log('')
+log('EVENTBRITE')
 for i in range(1, intentos_maximos + 1):
     try:
         print(f"🚀 Iniciando Eventbrite - Intento {i} de {intentos_maximos}...")
         resultado_final = ejecutar_scraper_eventbrite()
         
         # Si llega aquí, es que funcionó (no hubo raise)
-        log(f"✅ Intento {i} completado con éxito.")
+        print(f"✅ Intento {i} completado con éxito.")
         break 
 
     except Exception as e:
@@ -1283,12 +1287,13 @@ def enviar_log_smtp(cuerpo_log, lista_destinatarios):
 
     except Exception as e:
         log(f"🔴 Error al enviar mail vía SMTP: {e}")
-destinatarios=['furrutia@cordobaacelera.com.ar']
+destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar']
 # Obtenemos todo el texto acumulado en el log_buffer
 contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
