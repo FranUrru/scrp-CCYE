@@ -1160,7 +1160,21 @@ def ejecutar_scraper_eventbrite():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 
-ejecutar_scraper_eventbrite()
+for i in range(1, 4):
+    try:
+        print(f"🚀 Iniciando Eventbrite - Intento {i} de {intentos_maximos}...")
+        resultado_final = ejecutar_scraper_eventbrite()
+        break  # Si llega aquí sin error, rompe el bucle
+    except Exception as e:
+        if i < intentos_maximos:
+            print(f"⚠️ El intento {i} falló. Esperando 10 segundos para reintentar...")
+            time.sleep(10) # Pausa para que el sitio no te bloquee
+        else:
+            print("🛑 Se agotaron los 3 intentos. El scraper no pudo completarse.")
+            # Aquí podrías asignar un reporte de error manual si lo necesitas
+            resultado_final = {"nombre": "Eventbrite", "estado": "Error definitivo"}
+
+print(f"Estado final del proceso: {resultado_final['estado']}")
 
 
 
