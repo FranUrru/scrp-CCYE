@@ -1159,8 +1159,8 @@ def ejecutar_scraper_eventbrite():
             driver.quit()
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
-
-for i in range(1, 4):
+intentos_maximos=3
+for i in range(1, intentos_maximos+1):
     try:
         print(f"🚀 Iniciando Eventbrite - Intento {i} de {intentos_maximos}...")
         resultado_final = ejecutar_scraper_eventbrite()
@@ -1175,6 +1175,7 @@ for i in range(1, 4):
             resultado_final = {"nombre": "Eventbrite", "estado": "Error definitivo"}
 
 print(f"Estado final del proceso: {resultado_final['estado']}")
+
 
 
 
