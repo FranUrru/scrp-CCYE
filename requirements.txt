@@ -7,3 +7,4 @@ oauth2client
 openpyxl
 requests
 numpy
+googleapiclient
