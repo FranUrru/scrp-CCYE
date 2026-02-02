@@ -819,6 +819,7 @@ def procesar_dataframe_complejo(df, columna_fecha='Fecha'):
     return df_normalizado
 
 def ejecutar_scraper_eden():
+    from google.oauth2 import service_account
     import json
     import os
     driver = None
@@ -1295,6 +1296,7 @@ contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
