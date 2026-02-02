@@ -927,7 +927,7 @@ def ejecutar_scraper_eden():
     finally:
         if driver: driver.quit()
         return reporte
-ejecutar_scraper_eden()
+#ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1175,6 +1175,7 @@ for i in range(1, 4):
             resultado_final = {"nombre": "Eventbrite", "estado": "Error definitivo"}
 
 print(f"Estado final del proceso: {resultado_final['estado']}")
+
 
 
 
