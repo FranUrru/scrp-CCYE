@@ -1204,7 +1204,7 @@ resultado_final = None
 for i in range(1, intentos_maximos + 1):
     try:
         log(f"🚀 Iniciando Eventbrite - Intento {i} de {intentos_maximos}...")
-        resultado_final = ejecutar_scraper_eventbrite()
+        #resultado_final = ejecutar_scraper_eventbrite()
         
         # Si llega aquí, es que funcionó (no hubo raise)
         log(f"✅ Intento {i} completado con éxito.")
@@ -1232,10 +1232,11 @@ for i in range(1, intentos_maximos + 1):
 log(f"Estado final registrado: {resultado_final['estado']}")
 # Aquí puedes usar resultado_final para subirlo a otro lado o mostrarlo
 import base64
-from email.message import EmailMessage
-from googleapiclient.discovery import build
 import json
 import os
+from email.message import EmailMessage
+from googleapiclient.discovery import build
+from google.oauth2 import service_account
 def enviar_log_gmail_api(cuerpo_log, lista_destinatarios):
     """Envía el log acumulado a múltiples correos usando Gmail API."""
     try:
@@ -1273,6 +1274,7 @@ contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_gmail_api(contenido_final_log, destinatarios)
+
 
 
 
