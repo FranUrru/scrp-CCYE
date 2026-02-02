@@ -24,3 +24,4 @@ jobs:
         run: python scrp-tkt-evb-ede.py # <-- Cambia esto por el nombre real de tu archivo
         env:
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
