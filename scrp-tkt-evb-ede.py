@@ -538,7 +538,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
         
         except Exception as e:
             intentos += 1
-            log(f"⚠️ Error al subir a Sheets (Intento {intentos}/{retries}): {e}")
+            print(f"⚠️ Error al subir a Sheets (Intento {intentos}/{retries}): {e}")
             if intentos < retries:
                 time.sleep(5)
             
@@ -933,6 +933,29 @@ def ejecutar_scraper_eden():
                 'fecha de carga': datetime.today().strftime('%Y-%m-%d') 
             }).dropna(subset=['Comienza'])
 
+            # --- RESCATE DE FECHAS ORIGINALES ---
+            try:
+                # 1. Conectamos a la hoja para ver qué fechas ya teníamos
+                info_claves = json.loads(os.environ.get('GCP_SERVICE_ACCOUNT_JSON'))
+                creds = service_account.Credentials.from_service_account_info(info_claves, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+                client = gspread.authorize(creds)
+                sheet_h = client.open('Eden historico (Auto)').worksheet('Hoja 1')
+                historial_data = sheet_h.get_all_values()
+
+                if len(historial_data) > 1:
+                    df_historial = pd.DataFrame(historial_data[1:], columns=historial_data[0])
+                    # Creamos un diccionario de {Link: FechaOriginal}
+                    # Usamos 'Origen' como clave porque es el ID más estable
+                    dict_fechas = pd.Series(df_historial['fecha de carga'].values, index=df_historial['Origen']).to_dict()
+                    
+                    # 2. Si el link ya existía, le devolvemos su fecha vieja
+                    # Si es nuevo, conservará la fecha de hoy que pusimos arriba
+                    df_final['fecha de carga'] = df_final['Origen'].map(dict_fechas).fillna(df_final['fecha de carga'])
+                    
+                print("📅 Fechas históricas recuperadas para Edén.")
+            except Exception as e:
+                print(f"⚠️ No se pudo rescatar el historial de fechas: {e}")
+
             subir_a_google_sheets(df_final, 'Eden historico (Auto)', 'Hoja 1')
 
         # 6. Subida de Rechazados
@@ -1174,7 +1197,7 @@ def ejecutar_scraper_eventbrite():
             log(f"✅ Auditoría Eventbrite: {len(df_rechazados)} registros subidos.")
 
     except Exception as e:
-        log(f"❌ Error Crítico Eventbrite: {e}")
+        print(f"❌ Error Crítico Eventbrite: {e}")
         reporte["estado"] = "Fallido"
         reporte["error"] = str(e)
         if driver:
@@ -1266,6 +1289,7 @@ contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
