@@ -828,14 +828,14 @@ def ejecutar_scraper_eden():
     }
     
     # --- ÁREA DE AUDITORÍA ---
-    df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link'])
+    df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link','Fecha Scrp'])
 
     def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href, col_href="Link"):
         nonlocal df_rechazados
         nuevo = pd.DataFrame([{
             'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
             'Motivo': motivo, 'Linea': str(linea), 'Fuente': fuente,
-            col_href: href
+            col_href: href, 'Fecha Scrp': datetime.now().strftime('%Y-%m-%d')
         }])
         df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
 
@@ -923,13 +923,14 @@ def ejecutar_scraper_eden():
                 'Lugar': df_norm['Locación'],
                 'Comienza': df_norm['Fecha'],
                 'Finaliza': df_norm['Fecha'],
-                'Tipo de evento': None,
+                'Tipo de evento': 'Espectáculo',
                 'Detalle': None,
                 'Alcance': None,
                 'Costo de entrada': df_norm['precio_promedio'],
                 'Fuente': 'Eden Entradas',
                 'Origen': df_norm['href'].str.replace('..', 'https://www.edenentradas.com.ar', regex=False),
-                'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+                # USAMOS SOLO FECHA (sin hora/min/seg) para que coincida con lo ya subido hoy
+                'fecha de carga': datetime.today().strftime('%Y-%m-%d') 
             }).dropna(subset=['Comienza'])
 
             subir_a_google_sheets(df_final, 'Eden historico (Auto)', 'Hoja 1')
@@ -1265,6 +1266,7 @@ contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
