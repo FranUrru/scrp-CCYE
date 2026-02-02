@@ -1234,6 +1234,7 @@ log(f"Estado final registrado: {resultado_final['estado']}")
 import base64
 from email.message import EmailMessage
 from googleapiclient.discovery import build
+import json
 def enviar_log_gmail_api(cuerpo_log, lista_destinatarios):
     """Envía el log acumulado a múltiples correos usando Gmail API."""
     try:
@@ -1264,6 +1265,7 @@ contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_gmail_api(contenido_final_log, destinatarios)
+
 
 
 
