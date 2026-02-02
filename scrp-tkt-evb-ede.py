@@ -1234,8 +1234,8 @@ log(f"Estado final registrado: {resultado_final['estado']}")
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
-def enviar_log_gmail_api(cuerpo_log, lista_destinatarios):
+import os
+def enviar_log_smtp(cuerpo_log, lista_destinatarios):
     """Envía el log acumulado a múltiples correos usando SMTP (reemplaza Gmail API)."""
     try:
         # Configuración desde variables de entorno para seguridad
@@ -1277,7 +1277,8 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
-enviar_log_gmail_api(contenido_final_log, destinatarios)
+enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
