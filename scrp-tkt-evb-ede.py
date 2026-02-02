@@ -1256,6 +1256,13 @@ def enviar_log_gmail_api(cuerpo_log, lista_destinatarios):
             message['To'] = destinatario
             message['From'] = "Scraper Automático <hojas-calculo-ccye@proyecto-automatizacion-ccye.iam.gserviceaccount.com>" # El nombre que aparecerá
             message['Subject'] = f"REPORTE SCRP AGENDA"
+
+            encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+            create_message = {'raw': encoded_message}
+            
+            # Esta línea es la que realmente hace el trabajo:
+            service.users().messages().send(userId="me", body=create_message).execute()
+            log(f"📧 Mail enviado a {destinatario}")
     except Exception as e:
         log(f"🔴 Error al enviar mail: {e}")
 
@@ -1265,6 +1272,7 @@ contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_gmail_api(contenido_final_log, destinatarios)
+
 
 
 
