@@ -217,7 +217,7 @@ def clean_data(df):
         """
         if price_list:
             avg = sum(price_list) / len(price_list)
-            log(f"Lista de precios: {price_list}, Promedio: {avg}")
+            #log(f"Lista de precios: {price_list}, Promedio: {avg}")
             return avg
         return None
 
@@ -676,7 +676,7 @@ def ejecutar_scraper_ticketek():
             driver.quit()
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
-#ejecutar_scraper_ticketek()
+ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -947,7 +947,7 @@ def ejecutar_scraper_eden():
     finally:
         if driver: driver.quit()
         return reporte
-#ejecutar_scraper_eden()
+ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1265,6 +1265,7 @@ contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
