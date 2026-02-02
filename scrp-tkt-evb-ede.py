@@ -1159,22 +1159,34 @@ def ejecutar_scraper_eventbrite():
             driver.quit()
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
-intentos_maximos=3
-for i in range(1, intentos_maximos+1):
+
+intentos_maximos = 3
+resultado_final = None
+
+for i in range(1, intentos_maximos + 1):
     try:
         print(f"🚀 Iniciando Eventbrite - Intento {i} de {intentos_maximos}...")
         resultado_final = ejecutar_scraper_eventbrite()
-        break  # Si llega aquí sin error, rompe el bucle
-    except Exception as e:
-        if i < intentos_maximos:
-            print(f"⚠️ El intento {i} falló. Esperando 10 segundos para reintentar...")
-            time.sleep(10) # Pausa para que el sitio no te bloquee
-        else:
-            print("🛑 Se agotaron los 3 intentos. El scraper no pudo completarse.")
-            # Aquí podrías asignar un reporte de error manual si lo necesitas
-            resultado_final = {"nombre": "Eventbrite", "estado": "Error definitivo"}
+        
+        # Si llegamos aquí, la función devolvió un reporte (éxito)
+        print(f"✅ Intento {i} completado con éxito.")
+        break  # <--- SALE DEL BUCLE SOLO SI NO HUBO ERROR
 
-print(f"Estado final del proceso: {resultado_final['estado']}")
+    except Exception as e:
+        # Aquí capturamos el ValueError("No se encontraron datos...") 
+        # o cualquier error del driver.
+        print(f"❌ Error en intento {i}: {e}")
+        
+        if i < intentos_maximos:
+            print(f"⚠️ Reintentando en 10 segundos...")
+            time.sleep(10)
+        else:
+            print("🛑 Se agotaron todos los intentos. El proceso falló definitivamente.")
+            resultado_final = {"estado": "Fallido", "error": str(e)}
+
+# Este print va FUERA del for
+print(f"Estado final del proceso: {resultado_final.get('estado', 'Desconocido')}")
+
 
 
 
