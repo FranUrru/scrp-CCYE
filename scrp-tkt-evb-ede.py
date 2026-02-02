@@ -206,7 +206,7 @@ def clean_data(df):
                     #log(f"Precio 1: {price1_int}, Precio 2: {price2_int}, Suma: {total_price}")
                     total_prices.append(total_price)
                 else:
-                    print:f"Precio: {price1_int}")
+                    print(f"Precio: {price1_int}")
                     total_prices.append(price1_int)
             return total_prices
         return None
@@ -1265,6 +1265,7 @@ contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
