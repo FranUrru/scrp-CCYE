@@ -1151,6 +1151,9 @@ def ejecutar_scraper_eventbrite():
         print(f"❌ Error Crítico Eventbrite: {e}")
         reporte["estado"] = "Fallido"
         reporte["error"] = str(e)
+        if driver:
+            driver.quit()
+        raise e
     finally:
         if driver:
             driver.quit()
@@ -1158,6 +1161,7 @@ def ejecutar_scraper_eventbrite():
         return reporte
 
 ejecutar_scraper_eventbrite()
+
 
 
 
