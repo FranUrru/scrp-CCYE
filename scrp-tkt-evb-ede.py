@@ -1204,7 +1204,7 @@ resultado_final = None
 for i in range(1, intentos_maximos + 1):
     try:
         log(f"🚀 Iniciando Eventbrite - Intento {i} de {intentos_maximos}...")
-        #resultado_final = ejecutar_scraper_eventbrite()
+        resultado_final = ejecutar_scraper_eventbrite()
         
         # Si llega aquí, es que funcionó (no hubo raise)
         log(f"✅ Intento {i} completado con éxito.")
@@ -1274,6 +1274,7 @@ contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_gmail_api(contenido_final_log, destinatarios)
+
 
 
 
