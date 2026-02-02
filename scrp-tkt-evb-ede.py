@@ -1097,8 +1097,8 @@ def ejecutar_scraper_eventbrite():
 
         # --- PROCESAMIENTO ---
         if not event_data:
-            reporte["estado"] = "Exitoso (Sin eventos encontrados)"
-            return reporte
+            reporte["estado"] = "Primera página vacía. Reintentando."
+            raise ValueError("No se encontraron datos en Eventbrite")
 
         df_crudo = pd.DataFrame(event_data)
         
@@ -1175,6 +1175,7 @@ for i in range(1, intentos_maximos+1):
             resultado_final = {"nombre": "Eventbrite", "estado": "Error definitivo"}
 
 print(f"Estado final del proceso: {resultado_final['estado']}")
+
 
 
 
