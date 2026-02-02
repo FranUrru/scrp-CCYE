@@ -1231,49 +1231,54 @@ for i in range(1, intentos_maximos + 1):
 # Ahora, pase lo que pase, resultado_final contiene el diccionario
 log(f"Estado final registrado: {resultado_final['estado']}")
 # Aquí puedes usar resultado_final para subirlo a otro lado o mostrarlo
-import base64
-import json
-import os
-from email.message import EmailMessage
-from googleapiclient.discovery import build
-from google.oauth2 import service_account
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
 def enviar_log_gmail_api(cuerpo_log, lista_destinatarios):
-    """Envía el log acumulado a múltiples correos usando Gmail API."""
+    """Envía el log acumulado a múltiples correos usando SMTP (reemplaza Gmail API)."""
     try:
-        # Reutilizamos la lógica de tus credenciales
-        info_claves = json.loads(os.environ.get('GCP_SERVICE_ACCOUNT_JSON'))
-        scope_gmail = ["https://www.googleapis.com/auth/gmail.send"]
+        # Configuración desde variables de entorno para seguridad
+        remitente = "furrutia@cordobaacelera.com.ar"  # El mail que generó la App Password
+        password = os.environ.get('EMAIL_APP_PASSWORD')
         
-        creds = service_account.Credentials.from_service_account_info(
-            info_claves, scopes=scope_gmail
-        )
-        
-        # Si usas Google Workspace, a veces requiere delegate_to='tu_user@dominio.com'
-        # build('gmail', 'v1', credentials=creds)
-        service = build('gmail', 'v1', credentials=creds)
+        if not password:
+            log("🔴 Error: No se encontró EMAIL_APP_PASSWORD en los secretos.")
+            return
+
+        # Iniciamos la conexión con el servidor SMTP de Gmail
+        log("🔗 Conectando al servidor de correo...")
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()  # Cifrado de seguridad
+        server.login(remitente, password)
 
         for destinatario in lista_destinatarios:
-            message = EmailMessage()
-            message.set_content(cuerpo_log)
+            # Creamos el contenedor del mensaje
+            message = MIMEMultipart()
             message['To'] = destinatario
-            message['From'] = "Scraper Automático <hojas-calculo-ccye@proyecto-automatizacion-ccye.iam.gserviceaccount.com>" # El nombre que aparecerá
-            message['Subject'] = f"REPORTE SCRP AGENDA"
-
-            encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-            create_message = {'raw': encoded_message}
+            message['From'] = f"Scraper Automático <{remitente}>"
+            message['Subject'] = "📊 REPORTE SCRP AGENDA"
             
-            # Esta línea es la que realmente hace el trabajo:
-            service.users().messages().send(userId="me", body=create_message).execute()
-            log(f"📧 Mail enviado a {destinatario}")
-    except Exception as e:
-        log(f"🔴 Error al enviar mail: {e}")
+            # Agregamos el cuerpo del log
+            message.attach(MIMEText(cuerpo_log, 'plain'))
 
+            # Envío del correo
+            server.send_message(message)
+            log(f"📧 Mail enviado a {destinatario}")
+
+        # Cerramos la conexión después de enviar a todos
+        server.quit()
+        log("✅ Proceso de envío finalizado.")
+
+    except Exception as e:
+        log(f"🔴 Error al enviar mail vía SMTP: {e}")
 destinatarios=['furrutia@cordobaacelera.com.ar']
 # Obtenemos todo el texto acumulado en el log_buffer
 contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_gmail_api(contenido_final_log, destinatarios)
+
 
 
 
