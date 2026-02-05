@@ -1370,7 +1370,7 @@ def ejecutar_scraper_ferias_y_congresos():
                     registrar_rechazo(
                         nombre=nombre, loc=recinto_raw, fecha=fecha_raw,
                         motivo="El evento no se encuentra en córdoba capital",
-                        linea="80", fuente="Ferias y Congresos", href=url_fuente
+                        linea="1367", fuente="Ferias y Congresos", href=url_fuente
                     )
                     continue
 
@@ -1381,7 +1381,7 @@ def ejecutar_scraper_ferias_y_congresos():
                     registrar_rechazo(
                         nombre=nombre, loc=recinto_raw, fecha=fecha_raw,
                         motivo="FALLO DE EXTRACCIÓN de fecha (formato no reconocido)",
-                        linea="92", fuente="Ferias y Congresos", href=url_fuente
+                        linea="1381", fuente="Ferias y Congresos", href=url_fuente
                     )
                     continue
 
@@ -1430,6 +1430,7 @@ ejecutar_scraper_ferias_y_congresos()
 destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
