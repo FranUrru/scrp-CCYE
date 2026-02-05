@@ -1386,17 +1386,17 @@ def ejecutar_scraper_ferias_y_congresos():
                     continue
 
                 # 3. Construcción de fila válida
-                    raw_data.append({
-                    'Eventos': nombre,          # Cambiado a 'Eventos' para consistencia con otros scrapers
-                    'Lugar': recinto_raw.replace("Recinto:", "").strip(),
-                    'Comienza': f_ini,          # Usamos nombres estándar para evitar problemas de duplicados
-                    'Finaliza': f_fin,
-                    'Tipo de evento': 'M.I.C.E',
-                    'Detalle': '',
-                    'Alcance': '',
-                    'Costo de entrada': '',
-                    'Fuente': 'Ferias y Congresos',
-                    'Origen': url_fuente        # Usamos 'Origen' como ID único
+                raw_data.append({
+                'Eventos': nombre,          # Cambiado a 'Eventos' para consistencia con otros scrapers
+                'Lugar': recinto_raw.replace("Recinto:", "").strip(),
+                'Comienza': f_ini,          # Usamos nombres estándar para evitar problemas de duplicados
+                'Finaliza': f_fin,
+                'Tipo de evento': 'M.I.C.E',
+                'Detalle': '',
+                'Alcance': '',
+                'Costo de entrada': '',
+                'Fuente': 'Ferias y Congresos',
+                'Origen': url_fuente        # Usamos 'Origen' como ID único
                 })
             except Exception:
                 continue
@@ -1422,16 +1422,6 @@ def ejecutar_scraper_ferias_y_congresos():
             
             reporte["estado"] = "Exitoso"
             reporte["filas_procesadas"] = len(df_final)
-        if not df_final.empty:
-            df_final['fecha de carga'] = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
-            
-            # Subida a Sheets (Punto 2)
-            subir_a_google_sheets(df_final, 'Ferias y Congresos (Auto)', 'Hoja 1')
-            
-            reporte["estado"] = "Exitoso"
-            reporte["filas_procesadas"] = len(df_final)
-        else:
-            reporte["estado"] = "Sin datos válidos"
 
         # Subida de auditoría si hay rechazados
         if not df_rechazados.empty:
@@ -1453,6 +1443,7 @@ ejecutar_scraper_ferias_y_congresos()
 destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
