@@ -512,7 +512,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
                         combined_df[col] = combined_df[col].astype(str)
 
                 # 2. Eliminar duplicados finales (mantenemos el último encontrado)
-                columnas_posibles = ['Eventos', 'Nombre', 'title', 'Lugar', 'Locación', 'lugar', 'Origen', 'href', 'Fecha Convertida', 'Comienza', 'fuente','Fuente']
+                columnas_posibles = ['Eventos', 'Nombre', 'title', 'Lugar', 'Locación', 'lugar', 'Origen', 'href', 'Fecha Convertida', 'Comienza','Origen']
                 subset_duplicados = [c for c in columnas_posibles if c in combined_df.columns]
                 
                 if subset_duplicados:
@@ -676,7 +676,7 @@ def ejecutar_scraper_ticketek():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 log('TICKETEK')
-ejecutar_scraper_ticketek()
+#ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -1295,6 +1295,152 @@ contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
 enviar_log_smtp(contenido_final_log, destinatarios)
+log('')
+log('Ferias y Congresos')
+def ejecutar_scraper_ferias_y_congresos():
+    """
+    Scraper integral para Ferias y Congresos con auditoría de rechazos
+    y gestión de fechas de rango.
+    """
+    driver = None
+    reporte = {
+        "nombre": "Ferias y Congresos",
+        "estado": "Pendiente",
+        "filas_procesadas": 0,
+        "error": None,
+        "inicio": datetime.now().strftime('%H:%M:%S')
+    }
+    
+    df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link'])
+
+    def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href):
+        nonlocal df_rechazados
+        nuevo = pd.DataFrame([{
+            'Nombre': nombre, 
+            'Locación': loc, 
+            'Fecha': fecha,
+            'Motivo': motivo, 
+            'Linea': str(linea), 
+            'Fuente': fuente,
+            'Link': href
+        }])
+        df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
+
+    def parsear_rango_fechas(texto_fecha):
+        meses = {
+            'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6,
+            'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
+        }
+        ahora = datetime.now()
+        
+        try:
+            # Captura formatos: "07 al 09 de Febrero" o "19 Enero al 06 de Abril"
+            match = re.search(r'(\d+)\s*([a-zA-Z]+)?\s*al\s*(\d+)\s*de?\s*([a-zA-Z]+)', texto_fecha)
+            if not match: return None, None
+            
+            d1, m1_str, d2, m2_str = match.groups()
+            m2 = meses[m2_str.capitalize()]
+            m1 = meses[m1_str.capitalize()] if m1_str else m2
+            
+            year = ahora.year
+            # Creamos fechas tentativas para este año
+            f_ini_temp = ahora.replace(year=year, month=m1, day=int(d1))
+            f_fin_temp = ahora.replace(year=year, month=m2, day=int(d2))
+            
+            # Si el evento terminó antes de hoy, lo pasamos al año siguiente
+            if f_fin_temp < ahora:
+                year += 1
+                f_ini_temp = f_ini_temp.replace(year=year)
+                f_fin_temp = f_fin_temp.replace(year=year)
+            
+            return f_ini_temp.strftime('%Y-%m-%d'), f_fin_temp.strftime('%Y-%m-%d')
+        except:
+            return None, None
+
+    try:
+        driver = iniciar_driver() 
+        url_fuente = "https://www.feriasycongresos.com/calendario-de-eventos"
+        driver.get(url_fuente)
+        
+        # Espera dinámica (Vue.js)
+        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CLASS_NAME, "mod-evento")))
+        time.sleep(5)
+
+        bloques = driver.find_elements(By.CLASS_NAME, "mod-evento")
+        raw_data = []
+
+        for bloque in bloques:
+            try:
+                nombre = bloque.find_element(By.TAG_NAME, "h1").text
+                fecha_raw = bloque.find_element(By.CSS_SELECTOR, ".txt2 .bold").text
+                
+                try:
+                    recinto_raw = bloque.find_element(By.XPATH, ".//span[contains(text(), 'Recinto:')]").find_element(By.XPATH, "parent::*").text
+                except:
+                    recinto_raw = "No detectado"
+
+                # 1. Filtro Córdoba Capital (Requisito Punto 1)
+                if "Córdoba, Córdoba" not in recinto_raw:
+                    registrar_rechazo(
+                        nombre=nombre, loc=recinto_raw, fecha=fecha_raw,
+                        motivo="El evento no se encuentra en córdoba capital",
+                        linea="80", fuente="Ferias y Congresos", href=url_fuente
+                    )
+                    continue
+
+                # 2. Procesamiento de Rango de Fechas (Requisito Punto 3)
+                f_ini, f_fin = parsear_rango_fechas(fecha_raw)
+                
+                if not f_ini:
+                    registrar_rechazo(
+                        nombre=nombre, loc=recinto_raw, fecha=fecha_raw,
+                        motivo="FALLO DE EXTRACCIÓN de fecha (formato no reconocido)",
+                        linea="92", fuente="Ferias y Congresos", href=url_fuente
+                    )
+                    continue
+
+                # 3. Construcción de fila válida
+                raw_data.append({
+                    'Nombre': nombre,
+                    'date': f_ini,
+                    'finaliza': f_fin,
+                    'lugar': recinto_raw.replace("Recinto:", "").strip(),
+                    'Fuente': 'Ferias y Congresos',
+                    'href': url_fuente
+                })
+            except Exception:
+                continue
+
+        df_final = pd.DataFrame(raw_data)
+
+        if not df_final.empty:
+            df_final['fecha de carga'] = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Subida a Sheets (Punto 2)
+            subir_a_google_sheets(df_final, 'Ferias y Congresos (Auto)', 'Hoja 1')
+            
+            reporte["estado"] = "Exitoso"
+            reporte["filas_procesadas"] = len(df_final)
+        else:
+            reporte["estado"] = "Sin datos válidos"
+
+        # Subida de auditoría si hay rechazados
+        if not df_rechazados.empty:
+            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
+            print(f"✅ Auditoría: {len(df_rechazados)} eventos rechazados subidos.")
+
+    except Exception as e:
+        reporte["estado"] = "Fallido"
+        reporte["error"] = str(e)
+    finally:
+        if driver:
+            driver.quit()
+        reporte["fin"] = datetime.now().strftime('%H:%M:%S')
+        return reporte
+
+# Ejecución
+print("Iniciando Ferias y Congresos...")
+ejecutar_scraper_ferias_y_congresos()
 
 
 
