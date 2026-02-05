@@ -472,8 +472,6 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
     intentos = 0
     while intentos < retries:
         try:
-            col_fecha = next((c for c in ['fecha de carga', 'Fecha Scrp'] if c in df_entrada.columns), None)
-            subset_duplicados = [c for c in columnas_posibles if c in df_entrada.columns]
             info_claves = json.loads(secreto_json)
             creds = service_account.Credentials.from_service_account_info(
                 info_claves, 
@@ -483,24 +481,28 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
             sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
             existing_data = sheet.get_all_values()
             
+            # --- 1. PREPARACIÓN DE DATOS ---
             df_entrada = df.copy()
             conteo_reales = 0
             
-            # --- LÓGICA DE DETECCIÓN DE FILAS NUEVAS ---
-
+            # Definimos primero la lista maestra de columnas
             columnas_posibles = ['Eventos', 'Nombre', 'title', 'Lugar', 'Locación', 'lugar', 'Origen', 'href', 'Fecha Convertida', 'Comienza']
+            
+            # Ahora sí buscamos cuáles existen en el df actual
+            subset_duplicados = [c for c in columnas_posibles if c in df_entrada.columns]
+            col_fecha = next((c for c in ['fecha de carga', 'Fecha Scrp'] if c in df_entrada.columns), None)
+            
+            # --- 2. LÓGICA DE DETECCIÓN DE FILAS NUEVAS ---
             if len(existing_data) > 1:
                 existing_df = pd.DataFrame(existing_data[1:], columns=existing_data[0])
-                
-                # Identificamos la columna que sirve como ID único (el link)
                 id_col = next((c for c in ['Origen', 'href', 'Link'] if c in df_entrada.columns), None)
                 
                 if id_col and id_col in existing_df.columns:
-                    # Filtramos filas de entrada que NO están en la base actual
-                    nuevas_filas_df = df_entrada[~df_entrada[id_col].isin(existing_df[id_col])]
+                    # Filtramos filas que no están en la hoja (usando el ID)
+                    nuevas_filas_df = df_entrada[~df_entrada[id_col].astype(str).isin(existing_df[id_col].astype(str))]
                     conteo_reales = len(nuevas_filas_df)
                 else:
-                    conteo_reales = len(df_entrada) # Fallback si no hay columna ID
+                    conteo_reales = len(df_entrada)
 
                 combined_df = pd.concat([existing_df, df_entrada], ignore_index=True)
             else:
@@ -508,37 +510,39 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
                 conteo_reales = len(df_entrada)
 
             if not combined_df.empty:
-                # 1. Limpieza de datos no compatibles con JSON/Sheets
+                # 3. Limpieza para Sheets
                 combined_df = combined_df.replace([np.inf, -np.inf], np.nan).fillna("")
                 
                 for col in combined_df.columns:
                     if pd.api.types.is_datetime64_any_dtype(combined_df[col]):
                         combined_df[col] = combined_df[col].astype(str)
                
-                # 2. Ordenar por fecha de captura si la columna existe
+                # 4. ORDENAR PARA MANTENER ORIGINAL (keep='first')
                 if col_fecha:
-                    # Aseguramos que sea datetime para un sort real
                     combined_df[col_fecha] = pd.to_datetime(combined_df[col_fecha], errors='coerce')
+                    # Orden ascendente: lo más viejo queda arriba
                     combined_df = combined_df.sort_values(by=col_fecha, ascending=True)
                 
-                # 3. Eliminar duplicados: Mantenemos lo que está arriba (lo viejo)
+                # 5. ELIMINAR DUPLICADOS (Mantenemos la primera aparición/fecha vieja)
                 if subset_duplicados:
                     combined_df = combined_df.drop_duplicates(subset=subset_duplicados, keep='first')
                 
-                # 4. Re-ordenar para Google Sheets (lo nuevo arriba para que el usuario lo vea primero)
+                # 6. RE-ORDENAR PARA VISTA DE USUARIO (Lo nuevo arriba)
                 if col_fecha:
                     combined_df = combined_df.sort_values(by=col_fecha, ascending=False)
+                    # Volvemos a string para evitar errores de JSON
+                    combined_df[col_fecha] = combined_df[col_fecha].astype(str).replace("NaT", "")
 
-                # 5. Actualizar la hoja
+                # 7. SUBIDA FINAL
                 sheet.clear()
                 valores_finales = [combined_df.columns.values.tolist()] + combined_df.values.tolist()
                 sheet.update(valores_finales, value_input_option='USER_ENTERED')
                 
-                log(f"✅ Hoja '{nombre_tabla}' actualizada con éxito.")
+                log(f"✅ Hoja '{nombre_tabla}' actualizada.")
                 log(f"📊 Se agregaron {conteo_reales} filas nuevas en {nombre_tabla}")
                 return True 
             else:
-                log(f"⚠️ El DataFrame resultante está vacío para {nombre_tabla}")
+                log(f"⚠️ DataFrame vacío para {nombre_tabla}")
                 return False
         
         except Exception as e:
@@ -548,7 +552,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
                 time.sleep(5)
             
     return False
-
+    
 def ejecutar_scraper_ticketek():
     """
     Ejecuta el scraper y devuelve un reporte del estado.
@@ -1425,6 +1429,7 @@ print("Iniciando Ferias y Congresos...")
 ejecutar_scraper_ferias_y_congresos()
 
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
