@@ -472,6 +472,8 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
     intentos = 0
     while intentos < retries:
         try:
+            col_fecha = next((c for c in ['fecha de carga', 'Fecha Scrp'] if c in df_entrada.columns), None)
+            subset_duplicados = [c for c in columnas_posibles if c in df_entrada.columns]
             info_claves = json.loads(secreto_json)
             creds = service_account.Credentials.from_service_account_info(
                 info_claves, 
@@ -485,8 +487,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
             conteo_reales = 0
             
             # --- LÓGICA DE DETECCIÓN DE FILAS NUEVAS ---
-            col_fecha = next((c for c in ['fecha de carga', 'Fecha Scrp'] if c in df_entrada.columns), None)
-            subset_duplicados = [c for c in columnas_posibles if c in df_entrada.columns]
+
             columnas_posibles = ['Eventos', 'Nombre', 'title', 'Lugar', 'Locación', 'lugar', 'Origen', 'href', 'Fecha Convertida', 'Comienza']
             if len(existing_data) > 1:
                 existing_df = pd.DataFrame(existing_data[1:], columns=existing_data[0])
@@ -1424,6 +1425,7 @@ print("Iniciando Ferias y Congresos...")
 ejecutar_scraper_ferias_y_congresos()
 
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
