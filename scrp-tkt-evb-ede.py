@@ -686,7 +686,7 @@ def ejecutar_scraper_ticketek():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 log('TICKETEK')
-#ejecutar_scraper_ticketek()
+ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -1430,6 +1430,7 @@ ejecutar_scraper_ferias_y_congresos()
 destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
