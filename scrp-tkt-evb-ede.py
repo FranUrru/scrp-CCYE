@@ -1275,9 +1275,8 @@ def enviar_log_smtp(cuerpo_log, lista_destinatarios):
 
     except Exception as e:
         log(f"🔴 Error al enviar mail vía SMTP: {e}")
-destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar']
-# Obtenemos todo el texto acumulado en el log_buffer
-contenido_final_log = log_buffer.getvalue()
+
+
 
 # Llamamos a la función con la lista de correos
 
@@ -1427,8 +1426,10 @@ def ejecutar_scraper_ferias_y_congresos():
 # Ejecución
 print("Iniciando Ferias y Congresos...")
 ejecutar_scraper_ferias_y_congresos()
-
+destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar']
+contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
