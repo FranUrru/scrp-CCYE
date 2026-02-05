@@ -1386,19 +1386,42 @@ def ejecutar_scraper_ferias_y_congresos():
                     continue
 
                 # 3. Construcción de fila válida
-                raw_data.append({
-                    'Nombre': nombre,
-                    'date': f_ini,
-                    'finaliza': f_fin,
-                    'lugar': recinto_raw.replace("Recinto:", "").strip(),
+                    raw_data.append({
+                    'Eventos': nombre,          # Cambiado a 'Eventos' para consistencia con otros scrapers
+                    'Lugar': recinto_raw.replace("Recinto:", "").strip(),
+                    'Comienza': f_ini,          # Usamos nombres estándar para evitar problemas de duplicados
+                    'Finaliza': f_fin,
+                    'Tipo de evento': 'M.I.C.E',
+                    'Detalle': '',
+                    'Alcance': '',
+                    'Costo de entrada': '',
                     'Fuente': 'Ferias y Congresos',
-                    'href': url_fuente
+                    'Origen': url_fuente        # Usamos 'Origen' como ID único
                 })
             except Exception:
                 continue
 
         df_final = pd.DataFrame(raw_data)
-
+        # --- 4. Formateo y Orden Final ---
+        if raw_data:
+            df_final = pd.DataFrame(raw_data)
+            
+            # Aseguramos el orden exacto de las columnas antes de enviar
+            columnas_ordenadas = [
+                'Eventos', 'Lugar', 'Comienza', 'Finaliza', 
+                'Tipo de evento', 'Detalle', 'Alcance', 
+                'Costo de entrada', 'Fuente', 'Origen'
+            ]
+            
+            # Reindexamos para asegurar el orden y agregamos la fecha de carga
+            df_final = df_final[columnas_ordenadas]
+            df_final['fecha de carga'] = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Subida a Sheets
+            subir_a_google_sheets(df_final, 'Ferias y Congresos (Auto)', 'Hoja 1')
+            
+            reporte["estado"] = "Exitoso"
+            reporte["filas_procesadas"] = len(df_final)
         if not df_final.empty:
             df_final['fecha de carga'] = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
             
@@ -1430,6 +1453,7 @@ ejecutar_scraper_ferias_y_congresos()
 destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
