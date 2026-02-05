@@ -1365,7 +1365,8 @@ def ejecutar_scraper_ferias_y_congresos():
                     recinto_raw = "No detectado"
 
                 # 1. Filtro Córdoba Capital (Requisito Punto 1)
-                if "Capital, Córdoba" not in recinto_raw:
+                lugares_validos = ["Capital, Córdoba", "Arguello, Córdoba"]
+                if not any(lugar in recinto_raw for lugar in lugares_validos):
                     registrar_rechazo(
                         nombre=nombre, loc=recinto_raw, fecha=fecha_raw,
                         motivo="El evento no se encuentra en córdoba capital",
@@ -1429,6 +1430,7 @@ ejecutar_scraper_ferias_y_congresos()
 destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
