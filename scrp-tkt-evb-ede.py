@@ -510,20 +510,22 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
                 for col in combined_df.columns:
                     if pd.api.types.is_datetime64_any_dtype(combined_df[col]):
                         combined_df[col] = combined_df[col].astype(str)
-
-                # 2. Eliminar duplicados finales (mantenemos el último encontrado)
-                columnas_posibles = ['Eventos', 'Nombre', 'title', 'Lugar', 'Locación', 'lugar', 'Origen', 'href', 'Fecha Convertida', 'Comienza','Origen']
-                subset_duplicados = [c for c in columnas_posibles if c in combined_df.columns]
+               
+                # 2. Ordenar por fecha de captura si la columna existe
+                if col_fecha:
+                    # Aseguramos que sea datetime para un sort real
+                    combined_df[col_fecha] = pd.to_datetime(combined_df[col_fecha], errors='coerce')
+                    combined_df = combined_df.sort_values(by=col_fecha, ascending=True)
                 
+                # 3. Eliminar duplicados: Mantenemos lo que está arriba (lo viejo)
                 if subset_duplicados:
-                    combined_df = combined_df.drop_duplicates(subset=subset_duplicados, keep='last')
+                    combined_df = combined_df.drop_duplicates(subset=subset_duplicados, keep='first')
                 
-                # 3. Ordenar por fecha de captura si la columna existe
-                col_fecha = next((c for c in ['fecha de carga', 'Fecha Scrp'] if c in combined_df.columns), None)
+                # 4. Re-ordenar para Google Sheets (lo nuevo arriba para que el usuario lo vea primero)
                 if col_fecha:
                     combined_df = combined_df.sort_values(by=col_fecha, ascending=False)
 
-                # 4. Actualizar la hoja
+                # 5. Actualizar la hoja
                 sheet.clear()
                 valores_finales = [combined_df.columns.values.tolist()] + combined_df.values.tolist()
                 sheet.update(valores_finales, value_input_option='USER_ENTERED')
@@ -935,30 +937,6 @@ def ejecutar_scraper_eden():
                 # USAMOS SOLO FECHA (sin hora/min/seg) para que coincida con lo ya subido hoy
                 'fecha de carga': datetime.today().strftime('%Y-%m-%d') 
             }).dropna(subset=['Comienza'])
-
-            # --- RESCATE DE FECHAS ORIGINALES ---
-            try:
-                # 1. Conectamos a la hoja para ver qué fechas ya teníamos
-                info_claves = json.loads(os.environ.get('GCP_SERVICE_ACCOUNT_JSON'))
-                creds = service_account.Credentials.from_service_account_info(info_claves, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
-                client = gspread.authorize(creds)
-                sheet_h = client.open('Eden historico (Auto)').worksheet('Hoja 1')
-                historial_data = sheet_h.get_all_values()
-
-                if len(historial_data) > 1:
-                    df_historial = pd.DataFrame(historial_data[1:], columns=historial_data[0])
-                    # Creamos un diccionario de {Link: FechaOriginal}
-                    # Usamos 'Origen' como clave porque es el ID más estable
-                    dict_fechas = pd.Series(df_historial['fecha de carga'].values, index=df_historial['Origen']).to_dict()
-                    
-                    # 2. Si el link ya existía, le devolvemos su fecha vieja
-                    # Si es nuevo, conservará la fecha de hoy que pusimos arriba
-                    df_final['fecha de carga'] = df_final['Origen'].map(dict_fechas).fillna(df_final['fecha de carga'])
-                    
-                print("📅 Fechas históricas recuperadas para Edén.")
-            except Exception as e:
-                print(f"⚠️ No se pudo rescatar el historial de fechas: {e}")
-
             subir_a_google_sheets(df_final, 'Eden historico (Auto)', 'Hoja 1')
 
         # 6. Subida de Rechazados
@@ -966,7 +944,7 @@ def ejecutar_scraper_eden():
             subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
 
         reporte["estado"] = "Exitoso"
-        reporte["filas_procesadas"] = len(df_final) if not df_norm.empty else 0
+        #reporte["filas_procesadas"] = len(df_final) if not df_norm.empty else 0
 
     except Exception as e:
         reporte["estado"] = "Fallido"
@@ -1294,7 +1272,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.a
 contenido_final_log = log_buffer.getvalue()
 
 # Llamamos a la función con la lista de correos
-enviar_log_smtp(contenido_final_log, destinatarios)
+
 log('')
 log('Ferias y Congresos')
 def ejecutar_scraper_ferias_y_congresos():
@@ -1380,7 +1358,7 @@ def ejecutar_scraper_ferias_y_congresos():
                     recinto_raw = "No detectado"
 
                 # 1. Filtro Córdoba Capital (Requisito Punto 1)
-                if "Córdoba, Córdoba" not in recinto_raw:
+                if "Capital, Córdoba" not in recinto_raw:
                     registrar_rechazo(
                         nombre=nombre, loc=recinto_raw, fecha=fecha_raw,
                         motivo="El evento no se encuentra en córdoba capital",
@@ -1441,6 +1419,9 @@ def ejecutar_scraper_ferias_y_congresos():
 # Ejecución
 print("Iniciando Ferias y Congresos...")
 ejecutar_scraper_ferias_y_congresos()
+
+enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
