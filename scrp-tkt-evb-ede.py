@@ -1455,9 +1455,11 @@ dict_fuentes = {
 
 
 import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
+import os
+import json
 import gspread
+from google.oauth2 import service_account
+from datetime import datetime, timedelta
 
 def procesar_duplicados_y_normalizar():
     print("🚀 PASO 0: Iniciando proceso de Normalización y Detección de Duplicados...")
@@ -1465,7 +1467,6 @@ def procesar_duplicados_y_normalizar():
     try:
         # --- 1. CARGA DE DATOS ---
         df_principal = obtener_df_de_sheets("Entradas auto", "Eventos")
-        
         if df_principal.empty:
             print("❌ ERROR: El DataFrame de 'Entradas auto' está vacío.")
             return
@@ -1477,46 +1478,34 @@ def procesar_duplicados_y_normalizar():
         # --- 3. NORMALIZACIÓN ---
         print("🔍 PASO 3: Normalizando lugares...")
         df_equiv = obtener_df_de_sheets("Equiv Lugares", "Hoja 1")
-        
         if not df_equiv.empty:
             mapeo_lugares = {str(k).lower().strip(): v for k, v in zip(df_equiv.iloc[:, 0], df_equiv.iloc[:, 1])}
-            lugares_no_encontrados = []
             
             def normalizar(lugar):
                 if not lugar: return ""
                 l_raw = str(lugar).strip()
                 l_lower = l_raw.lower()
-                if l_lower in mapeo_lugares:
-                    return mapeo_lugares[l_lower]
-                else:
-                    if l_raw not in lugares_no_encontrados and l_raw != "No detectado":
-                        lugares_no_encontrados.append(l_raw)
-                    return l_raw
+                return mapeo_lugares.get(l_lower, l_raw)
 
             df_principal['Lugar'] = df_principal['Lugar'].apply(normalizar)
-            print(f"✅ Normalización completada.")
+            print("✅ Normalización completada.")
         
         # --- 4. DETECCIÓN DE DUPLICADOS ---
-        print("⚖️ PASO 4: Analizando duplicados (Mismo lugar + misma fecha)...")
+        print("⚖️ PASO 4: Analizando duplicados...")
         df_principal['Comienza_DT'] = pd.to_datetime(df_principal['Comienza'], errors='coerce')
         df_principal = df_principal.dropna(subset=['Comienza_DT'])
         
         duplicados_para_registro = []
         indices_procesados = set()
         
-        # --- LÓGICA DE ID RESTAURADA ---
-        print("🆔 Calculando próximo ID de duplicado...")
+        # --- LÓGICA DE ID ---
         df_hist_dups = obtener_df_de_sheets("Duplicados", "Hoja 1")
         prox_id_num = 1
         if not df_hist_dups.empty and 'id_dup' in df_hist_dups.columns:
             try:
-                # Extraemos los números de la columna id_dup (ej: '14A' -> 14)
                 nums = df_hist_dups['id_dup'].astype(str).str.extract('(\d+)').dropna().astype(int)
-                if not nums.empty:
-                    prox_id_num = int(nums.max()) + 1
-            except Exception as e:
-                print(f"⚠️ Error al calcular ID: {e}. Se usará 1.")
-                prox_id_num = 1
+                if not nums.empty: prox_id_num = int(nums.max()) + 1
+            except: prox_id_num = 1
 
         for i, fila_a in df_principal.iterrows():
             if i in indices_procesados: continue
@@ -1527,6 +1516,7 @@ def procesar_duplicados_y_normalizar():
                 
                 mismo_lugar = str(fila_a['Lugar']).lower().strip() == str(fila_b['Lugar']).lower().strip()
                 
+                # Criterio Temporal Flexible
                 tiene_hora_a = fila_a['Comienza_DT'].time() != datetime.min.time()
                 tiene_hora_b = fila_b['Comienza_DT'].time() != datetime.min.time()
                 
@@ -1542,13 +1532,14 @@ def procesar_duplicados_y_normalizar():
             if len(grupo) > 1:
                 indices_procesados.add(i)
                 letras = "ABCDEFGHIJKL"
-                print(f"🚩 Duplicado Detectado: {fila_a['Eventos']} (ID: {prox_id_num})")
+                print(f"🚩 Duplicado Detectado: {fila_a['Eventos']} (ID Grupo: {prox_id_num})")
                 
                 for idx, ev in enumerate(grupo):
                     ev_copy = ev.copy()
                     ev_copy['id_dup'] = f"{prox_id_num}{letras[idx]}"
                     duplicados_para_registro.append(ev_copy)
                     
+                    # Borrado del evento B, C, etc.
                     if idx > 0:
                         origen_id = str(ev['Origen'])
                         if origen_id in lista_exenciones:
@@ -1557,42 +1548,58 @@ def procesar_duplicados_y_normalizar():
                             fuente_val = ev['Fuente']
                             tabla_dest = dict_fuentes.get(fuente_val)
                             if tabla_dest:
+                                # Llamamos a la función corregida
                                 borrar_fila_por_origen(tabla_dest, "Hoja 1", origen_id)
                 
                 prox_id_num += 1
 
-        # --- 5. REGISTRO ---
+        # --- 5. REGISTRO FINAL ---
         if duplicados_para_registro:
-            df_dups_final = pd.DataFrame(duplicados_para_registro).drop(columns=['Comienza_DT'])
+            df_dups_final = pd.DataFrame(duplicados_para_registro)
+            
+            # Mover id_dup a la primera columna
+            cols = ['id_dup'] + [c for c in df_dups_final.columns if c not in ['id_dup', 'Comienza_DT']]
+            df_dups_final = df_dups_final[cols]
+            
             subir_a_google_sheets(df_dups_final, "Duplicados", "Hoja 1")
-            print(f"✅ Proceso terminado. {len(duplicados_para_registro)} registros.")
+            print(f"✅ Proceso terminado. {len(duplicados_para_registro)} registros de duplicados guardados.")
         else:
             print("✨ No se hallaron duplicados.")
 
     except Exception as e:
-        print(f"💥 ERROR: {e}")
+        print(f"💥 ERROR GENERAL: {e}")
 
 def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
-    """Busca un Origen (link) y borra la fila física en el Google Sheet original"""
+    """Localiza y borra con autenticación integrada para evitar errores de name undefined"""
+    import os, json, gspread
+    from google.oauth2 import service_account
+    
+    secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
+    if not secreto_json:
+        print("🔴 Error: No hay credenciales para borrar.")
+        return
+
     try:
-        # Aquí usamos gspread_authorize() que ya tienes definida
-        client = gspread_authorize()
+        info_claves = json.loads(secreto_json)
+        creds = service_account.Credentials.from_service_account_info(
+            info_claves, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        )
+        client = gspread.authorize(creds)
         sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
-        all_values = sheet.get_all_values()
-        if not all_values: return
         
-        df_temp = pd.DataFrame(all_values[1:], columns=all_values[0])
+        data = sheet.get_all_values()
+        if len(data) <= 1: return
         
+        df_temp = pd.DataFrame(data[1:], columns=data[0])
         if 'Origen' in df_temp.columns:
             match_idx = df_temp.index[df_temp['Origen'] == origen_link].tolist()
             if match_idx:
-                fila_a_borrar = match_idx[0] + 2 # +1 por header y +1 por base 1
+                # Borramos la primera coincidencia
+                fila_a_borrar = match_idx[0] + 2
                 sheet.delete_rows(fila_a_borrar)
-                print(f"   ✅ Fila {fila_a_borrar} eliminada de '{nombre_tabla}'")
-            else:
-                print(f"   ⚠️ No se encontró '{origen_link}' en '{nombre_tabla}'")
+                print(f"   🗑️ Fila {fila_a_borrar} eliminada de '{nombre_tabla}'")
     except Exception as e:
-        print(f"   ❌ Error al borrar en '{nombre_tabla}': {e}")
+        print(f"   ❌ Error al intentar borrar en '{nombre_tabla}': {e}")
 
 # --- FUNCIONES DE APOYO ---
 
@@ -1665,6 +1672,7 @@ def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
         print(f"   ❌ Error al intentar borrar en '{nombre_tabla}': {e}")
 
 procesar_duplicados_y_normalizar()
+
 
 
 
