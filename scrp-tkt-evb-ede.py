@@ -1446,6 +1446,12 @@ contenido_final_log = log_buffer.getvalue()
 #enviar_log_smtp(contenido_final_log, destinatarios)
 
 
+dict_fuentes = {
+    'Eden Entradas': 'Eden historico (Auto)',
+    'Ticketek': 'Ticketek historico (Auto)',
+    'Ferias y Congresos': 'Ferias y Congresos (Auto)',
+    'eventbrite': 'base_h_scrp_eventbrite'  # Asegúrate de que coincida con lo que sube el scraper
+}
 
 
 import pandas as pd
@@ -1659,6 +1665,7 @@ def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
         print(f"   ❌ Error al intentar borrar en '{nombre_tabla}': {e}")
 
 procesar_duplicados_y_normalizar()
+
 
 
 
