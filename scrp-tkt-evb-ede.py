@@ -1591,17 +1591,49 @@ def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
 # --- FUNCIONES DE APOYO ---
 
 def obtener_df_de_sheets(nombre_tabla, nombre_hoja):
-    """Descarga una hoja completa y la convierte en DataFrame"""
+    """
+    Descarga una hoja de Google Sheets usando las mismas credenciales 
+    del secreto de entorno.
+    """
+    import os
+    import json
+    import gspread
+    import pandas as pd
+    from google.oauth2 import service_account
+
+    # 1. Recuperar credenciales del entorno
+    secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
+    if secreto_json is None:
+        print(f"🔴 ERROR CREDENCIALES: No se encontró el secreto para leer {nombre_tabla}")
+        return pd.DataFrame()
+
     try:
-        # Aquí asumo que ya tienes tu lógica de 'client' de gspread
-        client = gspread_authorize() 
+        # 2. Autenticación
+        info_claves = json.loads(secreto_json)
+        creds = service_account.Credentials.from_service_account_info(
+            info_claves, 
+            scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        )
+        client = gspread.authorize(creds)
+        
+        # 3. Acceso a la hoja
         sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
         data = sheet.get_all_values()
+        
+        # 4. Convertir a DataFrame solo si hay datos (más de una fila para el header)
         if len(data) > 1:
-            return pd.DataFrame(data[1:], columns=data[0])
-        return pd.DataFrame()
+            df = pd.DataFrame(data[1:], columns=data[0])
+            print(f"✅ Lectura exitosa de '{nombre_tabla}': {len(df)} filas obtenidas.")
+            return df
+        elif len(data) == 1:
+            print(f"⚠️ La tabla '{nombre_tabla}' solo tiene encabezados.")
+            return pd.DataFrame(columns=data[0])
+        else:
+            print(f"⚠️ La tabla '{nombre_tabla}' está totalmente vacía.")
+            return pd.DataFrame()
+
     except Exception as e:
-        print(f"⚠️ Error al obtener '{nombre_tabla}': {e}")
+        print(f"❌ Error al obtener '{nombre_tabla}': {e}")
         return pd.DataFrame()
 
 def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
@@ -1627,6 +1659,7 @@ def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
         print(f"   ❌ Error al intentar borrar en '{nombre_tabla}': {e}")
 
 procesar_duplicados_y_normalizar()
+
 
 
 
