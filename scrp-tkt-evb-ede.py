@@ -551,8 +551,8 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
                 valores_a_subir = [data_final.columns.values.tolist()] + data_final.values.tolist()
                 sheet.update(valores_a_subir, value_input_option='USER_ENTERED')
                 
-                print(f"✅ Hoja '{nombre_tabla}' actualizada.")
-                print(f"📊 Se agregaron {conteo_reales} filas nuevas reales en {nombre_tabla}")
+                log(f"✅ Hoja '{nombre_tabla}' actualizada.")
+                log(f"📊 Se agregaron {conteo_reales} filas nuevas reales en {nombre_tabla}")
                 return True 
             else:
                 print(f"⚠️ DataFrame vacío para {nombre_tabla}")
@@ -1650,6 +1650,7 @@ procesar_duplicados_y_normalizar()
 
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
