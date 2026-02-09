@@ -1232,7 +1232,7 @@ for i in range(1, intentos_maximos + 1):
             log("🛑 Fallo en eventbrite (Intentos agotados)")
 
 # Ahora, pase lo que pase, resultado_final contiene el diccionario
-print(f"Estado final registrado: {resultado_final['estado']}")
+#print(f"Estado final registrado: {resultado_final['estado']}")
 # Aquí puedes usar resultado_final para subirlo a otro lado o mostrarlo
 import smtplib
 from email.mime.text import MIMEText
@@ -1587,6 +1587,7 @@ def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
                 print(f"   ⚠️ Link no encontrado en '{nombre_tabla}': {origen_link}")
     except Exception as e:
         print(f"   ❌ Error borrando en '{nombre_tabla}': {e}")
+
 
 
 
