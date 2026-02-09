@@ -1588,7 +1588,46 @@ def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
     except Exception as e:
         print(f"   ❌ Error borrando en '{nombre_tabla}': {e}")
 
+# --- FUNCIONES DE APOYO ---
+
+def obtener_df_de_sheets(nombre_tabla, nombre_hoja):
+    """Descarga una hoja completa y la convierte en DataFrame"""
+    try:
+        # Aquí asumo que ya tienes tu lógica de 'client' de gspread
+        client = gspread_authorize() 
+        sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
+        data = sheet.get_all_values()
+        if len(data) > 1:
+            return pd.DataFrame(data[1:], columns=data[0])
+        return pd.DataFrame()
+    except Exception as e:
+        print(f"⚠️ Error al obtener '{nombre_tabla}': {e}")
+        return pd.DataFrame()
+
+def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
+    """Busca un Origen (link) y borra la fila física en el Google Sheet original"""
+    try:
+        client = gspread_authorize()
+        sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
+        # Obtenemos solo la columna Origen para no saturar memoria
+        all_values = sheet.get_all_values()
+        df_temp = pd.DataFrame(all_values[1:], columns=all_values[0])
+        
+        if 'Origen' in df_temp.columns:
+            # Buscamos el índice
+            match_idx = df_temp.index[df_temp['Origen'] == origen_link].tolist()
+            if match_idx:
+                # El índice de gspread es base 1 y sumamos el encabezado
+                fila_a_borrar = match_idx[0] + 2
+                sheet.delete_rows(fila_sheets)
+                print(f"   ✅ Fila {fila_a_borrar} eliminada correctamente de '{nombre_tabla}'")
+            else:
+                print(f"   ⚠️ No se encontró el link '{origen_link}' en la tabla.")
+    except Exception as e:
+        print(f"   ❌ Error al intentar borrar en '{nombre_tabla}': {e}")
+
 procesar_duplicados_y_normalizar()
+
 
 
 
