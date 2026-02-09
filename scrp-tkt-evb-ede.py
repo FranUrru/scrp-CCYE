@@ -463,7 +463,8 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
     import json
     import gspread
     from google.oauth2 import service_account
-    
+    from datetime import datetime
+
     secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
     if secreto_json is None:
         print("🔴 DIAGNÓSTICO: La variable os.environ no encuentra 'GCP_SERVICE_ACCOUNT_JSON'. Revisa el YAML.")
@@ -479,66 +480,82 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
             )
             client = gspread.authorize(creds)
             sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
+            
+            # Obtener datos existentes
             existing_data = sheet.get_all_values()
             
-            # --- 1. PREPARACIÓN DE DATOS ---
+            # --- 1. PREPARACIÓN DE DATOS ENTRANTES ---
             df_entrada = df.copy()
             conteo_reales = 0
             
-            # Definimos primero la lista maestra de columnas
-            columnas_posibles = ['Eventos', 'Nombre', 'title', 'Lugar', 'Locación', 'lugar', 'Origen', 'href', 'Fecha Convertida', 'Comienza']
+            # Columnas que definen un evento único (IDs y Contenido)
+            columnas_id = ['Origen', 'href', 'Link', 'URL']
+            columnas_contenido = ['Eventos', 'Nombre', 'title', 'Lugar', 'Locación', 'lugar', 'Comienza', 'date']
             
-            # Ahora sí buscamos cuáles existen en el df actual
-            subset_duplicados = [c for c in columnas_posibles if c in df_entrada.columns]
-            col_fecha = next((c for c in ['fecha de carga', 'Fecha Scrp'] if c in df_entrada.columns), None)
+            # Buscamos qué columna de ID tiene este DF (ej: 'Origen' en Eden, 'href' en Ticketek)
+            id_col = next((c for c in columnas_id if c in df_entrada.columns), None)
+            # Buscamos la columna de fecha de carga
+            col_fecha_carga = next((c for c in ['fecha de carga', 'Fecha Scrp'] if c in df_entrada.columns), None)
+
             # --- 2. LÓGICA DE DETECCIÓN DE FILAS NUEVAS ---
-            conteo_reales = 0
             if len(existing_data) > 1:
                 existing_df = pd.DataFrame(existing_data[1:], columns=existing_data[0])
                 
-                # Ampliamos la búsqueda de la columna ID (Link único)
-                # Agregamos 'Origen' y 'href' que son los que usas en EDEN y Ticketek
-                id_col = next((c for c in ['Origen', 'href', 'Link', 'URL'] if c in df_entrada.columns), None)
-                
                 if id_col and id_col in existing_df.columns:
-                    # IMPORTANTE: Esto evita que el log muestre el total. 
-                    # Solo cuenta los links que NO están en la base actual.
-                    nuevas_filas_df = df_entrada[~df_entrada[id_col].astype(str).isin(existing_df[id_col].astype(str))]
-                    conteo_reales = len(nuevas_filas_df)
+                    # Filtramos las que realmente no están en la hoja usando el link/ID
+                    nuevas_filas_mask = ~df_entrada[id_col].astype(str).isin(existing_df[id_col].astype(str))
+                    conteo_reales = len(df_entrada[nuevas_filas_mask])
                 else:
                     conteo_reales = len(df_entrada)
-        
-                # Unimos todo
+
                 combined_df = pd.concat([existing_df, df_entrada], ignore_index=True)
             else:
                 combined_df = df_entrada
                 conteo_reales = len(df_entrada)
-        
+
             if not combined_df.empty:
-                # ... (limpieza normal) ...
-        
-                # --- 5. ELIMINAR DUPLICADOS (La clave para no "pisar") ---
-                # Definimos qué columnas definen un evento único
-                # Si existe el ID (link), lo usamos como criterio principal
-                criterios_duplicados = ['Eventos', 'Nombre', 'title', 'Origen', 'href', 'Link']
-                subset_actual = [c for c in criterios_duplicados if c in combined_df.columns]
-        
-                if subset_actual:
-                    # MANTENER EL REGISTRO ORIGINAL:
-                    # Al usar keep='first', si el evento ya existía con fecha de carga "2026-02-03",
-                    # y hoy entra de nuevo, se queda con la del 03 y descarta la de hoy.
-                    combined_df = combined_df.drop_duplicates(subset=subset_actual, keep='first')
-        
-                # --- 7. SUBIDA ---
-                sheet.clear()
-                valores_finales = [combined_df.columns.values.tolist()] + combined_df.values.tolist()
-                sheet.update(valores_finales, value_input_option='USER_ENTERED')
+                # --- 3. LIMPIEZA DE TIMESTAMPS (Evita error JSON serializable) ---
+                # Convertimos todo a datetime para poder ordenar, luego a string para Sheets
+                if col_fecha_carga:
+                    combined_df[col_fecha_carga] = pd.to_datetime(combined_df[col_fecha_carga], errors='coerce')
                 
-                log(f"✅ Hoja '{nombre_tabla}' actualizada.")
-                log(f"📊 Se agregaron {conteo_reales} filas nuevas en {nombre_tabla}")
+                # --- 4. ELIMINAR DUPLICADOS (Mantenemos el registro más antiguo) ---
+                # Definimos el subset para drop_duplicates basándonos en lo que exista en el DF
+                subset_duplicados = [c for c in (columnas_id + columnas_contenido) if c in combined_df.columns]
+                
+                if subset_duplicados:
+                    if col_fecha_carga:
+                        # Ordenamos ascendente para que 'keep=first' se quede con la fecha más vieja
+                        combined_df = combined_df.sort_values(by=col_fecha_carga, ascending=True)
+                    
+                    combined_df = combined_df.drop_duplicates(subset=subset_duplicados, keep='first')
+
+                # --- 5. ORDENAR PARA VISTA DE USUARIO (Lo más nuevo arriba) ---
+                if col_fecha_carga:
+                    combined_df = combined_df.sort_values(by=col_fecha_carga, ascending=False)
+
+                # --- 6. FORMATEO FINAL ANTI-ERROR ---
+                # Esta es la parte crítica para evitar el error de "Object of type Timestamp"
+                def serializar_datos(val):
+                    if pd.isna(val) or val is pd.NaT: return ""
+                    if isinstance(val, (datetime, pd.Timestamp)):
+                        return val.strftime('%Y-%m-%d %H:%M:%S')
+                    return str(val) if isinstance(val, (dict, list)) else val
+
+                # Aplicamos a todo el DataFrame y manejamos infinitos/nulos
+                combined_df = combined_df.replace([np.inf, -np.inf], np.nan).fillna("")
+                data_final = combined_df.map(serializar_datos)
+                
+                # --- 7. SUBIDA FINAL ---
+                sheet.clear()
+                valores_a_subir = [data_final.columns.values.tolist()] + data_final.values.tolist()
+                sheet.update(valores_a_subir, value_input_option='USER_ENTERED')
+                
+                print(f"✅ Hoja '{nombre_tabla}' actualizada.")
+                print(f"📊 Se agregaron {conteo_reales} filas nuevas reales en {nombre_tabla}")
                 return True 
             else:
-                log(f"⚠️ DataFrame vacío para {nombre_tabla}")
+                print(f"⚠️ DataFrame vacío para {nombre_tabla}")
                 return False
         
         except Exception as e:
@@ -1633,6 +1650,7 @@ procesar_duplicados_y_normalizar()
 
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
