@@ -1588,6 +1588,7 @@ def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
     except Exception as e:
         print(f"   ❌ Error borrando en '{nombre_tabla}': {e}")
 
+procesar_duplicados_y_normalizar()
 
 
 
