@@ -1453,8 +1453,8 @@ def ejecutar_scraper_ferias_y_congresos():
 # Ejecución
 print("Iniciando Ferias y Congresos...")
 ejecutar_scraper_ferias_y_congresos()
-destinatarios=['furrutia@cordobaacelera.com.ar']
-#destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar]
+#destinatarios=['furrutia@cordobaacelera.com.ar']
+destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar]
 
 
 
@@ -1629,20 +1629,6 @@ def obtener_df_de_sheets(nombre_tabla, nombre_hoja):
     except:
         return pd.DataFrame()
 
-def subir_a_google_sheets(df, nombre_tabla, nombre_hoja):
-    import os, json, gspread
-    from google.oauth2 import service_account
-    secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
-    if not secreto_json: return
-    try:
-        info_claves = json.loads(secreto_json)
-        creds = service_account.Credentials.from_service_account_info(info_claves, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
-        client = gspread.authorize(creds)
-        sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
-        # Añade al final de la hoja
-        sheet.append_rows(df.values.tolist())
-    except Exception as e:
-        print(f"❌ Error al subir a Duplicados: {e}")
 
 indices_processed = set()
 procesar_duplicados_y_normalizar()
@@ -1650,6 +1636,7 @@ procesar_duplicados_y_normalizar()
 
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
