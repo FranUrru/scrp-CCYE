@@ -698,7 +698,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # --- FUNCIONES DE APOYO PARA EDEN ---
-
+df_final=[]
 def extraer_promedio_precios_formato2(soup):
     precios_totales = []
     sector_divs = soup.find_all('div', class_='item sectorOption animated fadeInUp')
@@ -941,7 +941,7 @@ def ejecutar_scraper_eden():
                 # USAMOS SOLO FECHA (sin hora/min/seg) para que coincida con lo ya subido hoy
                 'fecha de carga': datetime.today().strftime('%Y-%m-%d') 
             }).dropna(subset=['Comienza'])
-            subir_a_google_sheets(df_final, 'Eden historico (Auto)', 'Hoja 1')
+        subir_a_google_sheets(df_final, 'Eden historico (Auto)', 'Hoja 1')
 
         # 6. Subida de Rechazados
         if not df_rechazados.empty:
@@ -1633,6 +1633,7 @@ procesar_duplicados_y_normalizar()
 
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
