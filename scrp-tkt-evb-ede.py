@@ -1458,31 +1458,28 @@ def procesar_duplicados_y_normalizar():
     
     try:
         # --- 1. CARGA DE DATOS ---
-        # Cambiamos "Hoja 1" por "Eventos" según tu corrección
         df_principal = obtener_df_de_sheets("Entradas auto", "Eventos")
         
         if df_principal.empty:
-            print("❌ ERROR: El DataFrame de 'Entradas auto' está vacío. Revisa el nombre de la hoja.")
+            print("❌ ERROR: El DataFrame de 'Entradas auto' está vacío.")
             return
 
         print("🛡️ PASO 2: Cargando exenciones...")
         df_exenciones = obtener_df_de_sheets("Duplicados", "Hoja 2")
         lista_exenciones = df_exenciones['Origen'].astype(str).tolist() if not df_exenciones.empty else []
 
-        # --- 3. NORMALIZACIÓN (SOPORTE CAPS INSENSITIVE) ---
-        print("🔍 PASO 3: Normalizando lugares (Ignorando Mayúsculas)...")
+        # --- 3. NORMALIZACIÓN ---
+        print("🔍 PASO 3: Normalizando lugares...")
         df_equiv = obtener_df_de_sheets("Equiv Lugares", "Hoja 1")
         
         if not df_equiv.empty:
-            # Creamos el diccionario con las llaves en MINÚSCULAS
             mapeo_lugares = {str(k).lower().strip(): v for k, v in zip(df_equiv.iloc[:, 0], df_equiv.iloc[:, 1])}
             lugares_no_encontrados = []
             
             def normalizar(lugar):
                 if not lugar: return ""
                 l_raw = str(lugar).strip()
-                l_lower = l_raw.lower() # Buscamos en minúsculas
-                
+                l_lower = l_raw.lower()
                 if l_lower in mapeo_lugares:
                     return mapeo_lugares[l_lower]
                 else:
@@ -1493,15 +1490,27 @@ def procesar_duplicados_y_normalizar():
             df_principal['Lugar'] = df_principal['Lugar'].apply(normalizar)
             print(f"✅ Normalización completada.")
         
-        # --- 4. DETECCIÓN DE DUPLICADOS (RELAJACIÓN DE CRITERIOS) ---
-        print("⚖️ PASO 4: Analizando eventos duplicados (Mismo lugar + misma fecha)...")
+        # --- 4. DETECCIÓN DE DUPLICADOS ---
+        print("⚖️ PASO 4: Analizando duplicados (Mismo lugar + misma fecha)...")
         df_principal['Comienza_DT'] = pd.to_datetime(df_principal['Comienza'], errors='coerce')
         df_principal = df_principal.dropna(subset=['Comienza_DT'])
         
         duplicados_para_registro = []
         indices_procesados = set()
         
-        # ... (Lógica de obtención de prox_id_num se mantiene igual) ...
+        # --- LÓGICA DE ID RESTAURADA ---
+        print("🆔 Calculando próximo ID de duplicado...")
+        df_hist_dups = obtener_df_de_sheets("Duplicados", "Hoja 1")
+        prox_id_num = 1
+        if not df_hist_dups.empty and 'id_dup' in df_hist_dups.columns:
+            try:
+                # Extraemos los números de la columna id_dup (ej: '14A' -> 14)
+                nums = df_hist_dups['id_dup'].astype(str).str.extract('(\d+)').dropna().astype(int)
+                if not nums.empty:
+                    prox_id_num = int(nums.max()) + 1
+            except Exception as e:
+                print(f"⚠️ Error al calcular ID: {e}. Se usará 1.")
+                prox_id_num = 1
 
         for i, fila_a in df_principal.iterrows():
             if i in indices_procesados: continue
@@ -1510,21 +1519,16 @@ def procesar_duplicados_y_normalizar():
             for j, fila_b in df_principal.iterrows():
                 if i == j or j in indices_procesados: continue
                 
-                # A. MISMO LUGAR (Ya normalizado y Case-Insensitive)
                 mismo_lugar = str(fila_a['Lugar']).lower().strip() == str(fila_b['Lugar']).lower().strip()
                 
-                # B. CRITERIO TEMPORAL (Mismo día o +/- 1h según disponibilidad de hora)
                 tiene_hora_a = fila_a['Comienza_DT'].time() != datetime.min.time()
                 tiene_hora_b = fila_b['Comienza_DT'].time() != datetime.min.time()
                 
                 if tiene_hora_a and tiene_hora_b:
-                    # Ambos tienen hora: Margen de 1 hora
                     coincide_tiempo = abs(fila_a['Comienza_DT'] - fila_b['Comienza_DT']) <= timedelta(hours=1)
                 else:
-                    # Al menos uno es solo fecha: Mismo día calendario
                     coincide_tiempo = fila_a['Comienza_DT'].date() == fila_b['Comienza_DT'].date()
                 
-                # REQUISITO ELIMINADO: Ya no importa si la fuente es igual o distinta
                 if mismo_lugar and coincide_tiempo:
                     grupo.append(fila_b)
                     indices_procesados.add(j)
@@ -1532,21 +1536,22 @@ def procesar_duplicados_y_normalizar():
             if len(grupo) > 1:
                 indices_procesados.add(i)
                 letras = "ABCDEFGHIJKL"
-                print(f"🚩 Duplicado Detectado: {fila_a['Eventos']} en {fila_a['Lugar']} (ID: {prox_id_num})")
+                print(f"🚩 Duplicado Detectado: {fila_a['Eventos']} (ID: {prox_id_num})")
                 
                 for idx, ev in enumerate(grupo):
                     ev_copy = ev.copy()
                     ev_copy['id_dup'] = f"{prox_id_num}{letras[idx]}"
                     duplicados_para_registro.append(ev_copy)
                     
-                    if idx > 0: # El primero se salva, los demás se borran
+                    if idx > 0:
                         origen_id = str(ev['Origen'])
                         if origen_id in lista_exenciones:
-                            print(f"🛡️ EXENCIÓN: Se conserva duplicado '{origen_id}'")
+                            print(f"🛡️ EXENCIÓN: Se conserva '{origen_id}'")
                         else:
-                            tabla_destino = dict_fuentes.get(ev['Fuente'])
-                            if tabla_destino:
-                                borrar_fila_por_origen(tabla_destino, "Hoja 1", origen_id)
+                            fuente_val = ev['Fuente']
+                            tabla_dest = dict_fuentes.get(fuente_val)
+                            if tabla_dest:
+                                borrar_fila_por_origen(tabla_dest, "Hoja 1", origen_id)
                 
                 prox_id_num += 1
 
@@ -1554,30 +1559,34 @@ def procesar_duplicados_y_normalizar():
         if duplicados_para_registro:
             df_dups_final = pd.DataFrame(duplicados_para_registro).drop(columns=['Comienza_DT'])
             subir_a_google_sheets(df_dups_final, "Duplicados", "Hoja 1")
-            print(f"✅ Proceso terminado. {len(duplicados_para_registro)} registros de duplicados.")
+            print(f"✅ Proceso terminado. {len(duplicados_para_registro)} registros.")
         else:
-            print("✨ No se hallaron duplicados con el nuevo criterio.")
+            print("✨ No se hallaron duplicados.")
 
     except Exception as e:
         print(f"💥 ERROR: {e}")
+
 def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
-    """Localiza el link 'Origen' y elimina la fila en el Sheet original"""
+    """Busca un Origen (link) y borra la fila física en el Google Sheet original"""
     try:
+        # Aquí usamos gspread_authorize() que ya tienes definida
         client = gspread_authorize()
         sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
-        data = sheet.get_all_values()
-        df_temp = pd.DataFrame(data[1:], columns=data[0])
+        all_values = sheet.get_all_values()
+        if not all_values: return
+        
+        df_temp = pd.DataFrame(all_values[1:], columns=all_values[0])
         
         if 'Origen' in df_temp.columns:
             match_idx = df_temp.index[df_temp['Origen'] == origen_link].tolist()
             if match_idx:
-                fila_sheets = match_idx[0] + 2 # +1 por index 0 y +1 por header
-                sheet.delete_rows(fila_sheets)
-                print(f"   🗑️ Fila {fila_sheets} eliminada de '{nombre_tabla}'")
+                fila_a_borrar = match_idx[0] + 2 # +1 por header y +1 por base 1
+                sheet.delete_rows(fila_a_borrar)
+                print(f"   ✅ Fila {fila_a_borrar} eliminada de '{nombre_tabla}'")
             else:
-                print(f"   ⚠️ Link no encontrado en '{nombre_tabla}': {origen_link}")
+                print(f"   ⚠️ No se encontró '{origen_link}' en '{nombre_tabla}'")
     except Exception as e:
-        print(f"   ❌ Error borrando en '{nombre_tabla}': {e}")
+        print(f"   ❌ Error al borrar en '{nombre_tabla}': {e}")
 
 # --- FUNCIONES DE APOYO ---
 
@@ -1650,6 +1659,7 @@ def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
         print(f"   ❌ Error al intentar borrar en '{nombre_tabla}': {e}")
 
 procesar_duplicados_y_normalizar()
+
 
 
 
