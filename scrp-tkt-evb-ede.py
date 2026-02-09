@@ -686,7 +686,7 @@ def ejecutar_scraper_ticketek():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 log('TICKETEK')
-#ejecutar_scraper_ticketek()
+ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -962,7 +962,7 @@ def ejecutar_scraper_eden():
         return reporte
 log('')
 log('EDÉN')
-#ejecutar_scraper_eden()
+ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1200,7 +1200,7 @@ def ejecutar_scraper_eventbrite():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
     return reporte
 
-intentos_maximos = 0
+intentos_maximos = 3
 resultado_final = None
 log('')
 log('EVENTBRITE')
@@ -1439,11 +1439,10 @@ def ejecutar_scraper_ferias_y_congresos():
 
 # Ejecución
 print("Iniciando Ferias y Congresos...")
-#ejecutar_scraper_ferias_y_congresos()
+ejecutar_scraper_ferias_y_congresos()
 destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar]
-contenido_final_log = log_buffer.getvalue()
-#enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 dict_fuentes = {
@@ -1528,7 +1527,7 @@ def procesar_duplicados_y_normalizar():
             if len(grupo_indices) > 1:
                 indices_procesados.add(i)
                 letras = "ABCDEFGHIJKL"
-                print(f"🚩 DUPLICADO: {fila_a['Eventos']} y otros {len(grupo_indices)-1}")
+                log(f"🚩 DUPLICADO: {fila_a['Eventos']} y otros {len(grupo_indices)-1}")
                 
                 for idx, idx_pos in enumerate(grupo_indices):
                     ev = df_principal.iloc[idx_pos].copy()
@@ -1562,9 +1561,9 @@ def procesar_duplicados_y_normalizar():
                     for _ in range(cantidad):
                         borrar_fila_por_origen(tabla_dest, "Hoja 1", origen)
             
-            print("✨ Limpieza terminada.")
+            log("✨ Limpieza terminada.")
         else:
-            print("✨ No se hallaron duplicados. (Tip: Revisa que las fechas en Sheets tengan formato fecha válido)")
+            log("✨ No se hallaron duplicados.")
 
     except Exception as e:
         print(f"💥 ERROR: {e}")
@@ -1636,6 +1635,8 @@ indices_processed = set()
 procesar_duplicados_y_normalizar()
 
 
+contenido_final_log = log_buffer.getvalue()
+enviar_log_smtp(contenido_final_log, destinatarios)
 
 
 
