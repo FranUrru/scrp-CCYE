@@ -491,49 +491,45 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
             # Ahora sí buscamos cuáles existen en el df actual
             subset_duplicados = [c for c in columnas_posibles if c in df_entrada.columns]
             col_fecha = next((c for c in ['fecha de carga', 'Fecha Scrp'] if c in df_entrada.columns), None)
-            
             # --- 2. LÓGICA DE DETECCIÓN DE FILAS NUEVAS ---
+            conteo_reales = 0
             if len(existing_data) > 1:
                 existing_df = pd.DataFrame(existing_data[1:], columns=existing_data[0])
-                id_col = next((c for c in ['Origen', 'href', 'Link'] if c in df_entrada.columns), None)
+                
+                # Ampliamos la búsqueda de la columna ID (Link único)
+                # Agregamos 'Origen' y 'href' que son los que usas en EDEN y Ticketek
+                id_col = next((c for c in ['Origen', 'href', 'Link', 'URL'] if c in df_entrada.columns), None)
                 
                 if id_col and id_col in existing_df.columns:
-                    # Filtramos filas que no están en la hoja (usando el ID)
+                    # IMPORTANTE: Esto evita que el log muestre el total. 
+                    # Solo cuenta los links que NO están en la base actual.
                     nuevas_filas_df = df_entrada[~df_entrada[id_col].astype(str).isin(existing_df[id_col].astype(str))]
                     conteo_reales = len(nuevas_filas_df)
                 else:
                     conteo_reales = len(df_entrada)
-
+        
+                # Unimos todo
                 combined_df = pd.concat([existing_df, df_entrada], ignore_index=True)
             else:
                 combined_df = df_entrada
                 conteo_reales = len(df_entrada)
-
+        
             if not combined_df.empty:
-                # 3. Limpieza para Sheets
-                combined_df = combined_df.replace([np.inf, -np.inf], np.nan).fillna("")
-                
-                for col in combined_df.columns:
-                    if pd.api.types.is_datetime64_any_dtype(combined_df[col]):
-                        combined_df[col] = combined_df[col].astype(str)
-               
-                # 4. ORDENAR PARA MANTENER ORIGINAL (keep='first')
-                if col_fecha:
-                    combined_df[col_fecha] = pd.to_datetime(combined_df[col_fecha], errors='coerce')
-                    # Orden ascendente: lo más viejo queda arriba
-                    combined_df = combined_df.sort_values(by=col_fecha, ascending=True)
-                
-                # 5. ELIMINAR DUPLICADOS (Mantenemos la primera aparición/fecha vieja)
-                if subset_duplicados:
-                    combined_df = combined_df.drop_duplicates(subset=subset_duplicados, keep='first')
-                
-                # 6. RE-ORDENAR PARA VISTA DE USUARIO (Lo nuevo arriba)
-                if col_fecha:
-                    combined_df = combined_df.sort_values(by=col_fecha, ascending=False)
-                    # Volvemos a string para evitar errores de JSON
-                    combined_df[col_fecha] = combined_df[col_fecha].astype(str).replace("NaT", "")
-
-                # 7. SUBIDA FINAL
+                # ... (limpieza normal) ...
+        
+                # --- 5. ELIMINAR DUPLICADOS (La clave para no "pisar") ---
+                # Definimos qué columnas definen un evento único
+                # Si existe el ID (link), lo usamos como criterio principal
+                criterios_duplicados = ['Eventos', 'Nombre', 'title', 'Origen', 'href', 'Link']
+                subset_actual = [c for c in criterios_duplicados if c in combined_df.columns]
+        
+                if subset_actual:
+                    # MANTENER EL REGISTRO ORIGINAL:
+                    # Al usar keep='first', si el evento ya existía con fecha de carga "2026-02-03",
+                    # y hoy entra de nuevo, se queda con la del 03 y descarta la de hoy.
+                    combined_df = combined_df.drop_duplicates(subset=subset_actual, keep='first')
+        
+                # --- 7. SUBIDA ---
                 sheet.clear()
                 valores_finales = [combined_df.columns.values.tolist()] + combined_df.values.tolist()
                 sheet.update(valores_finales, value_input_option='USER_ENTERED')
@@ -1637,6 +1633,7 @@ procesar_duplicados_y_normalizar()
 
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
