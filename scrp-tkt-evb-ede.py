@@ -1453,113 +1453,148 @@ dict_fuentes = {
     'eventbrite': 'base_h_scrp_eventbrite'  # Asegúrate de que coincida con lo que sube el scraper
 }
 
+import pandas as pd
+import os
+import json
+import gspread
+from google.oauth2 import service_account
+from datetime import datetime, timedelta
+
+# Asegúrate de tener definido tu dict_fuentes arriba o dentro de la función
+dict_fuentes = {
+    'Eden Entradas': 'Eden historico (Auto)',
+    'Ticketek': 'Ticketek historico (Auto)',
+    'Ferias y Congresos': 'Ferias y Congresos (Auto)',
+    'eventbrite': 'base_h_scrp_eventbrite'
+}
+
 def procesar_duplicados_y_normalizar():
-    print("🚀 PASO 0: Iniciando proceso de Normalización y Detección...")
+    print("🚀 PASO 0: Iniciando proceso de Normalización y Detección de Duplicados...")
     
     try:
-        # 1. CARGA DE DATOS
+        # --- 1. CARGA DE DATOS ---
         df_principal = obtener_df_de_sheets("Entradas auto", "Eventos")
-        if df_principal.empty: return
+        if df_principal.empty:
+            print("❌ ERROR: El DataFrame de 'Entradas auto' está vacío.")
+            return
 
-        # 2. NORMALIZACIÓN PREVIA Y LIMPIEZA (Fundamental)
-        # Limpiamos todos los strings para evitar que un espacio invisible rompa la detección
-        for col in ['Eventos', 'Lugar', 'Origen']:
-            if col in df_principal.columns:
-                df_principal[col] = df_principal[col].astype(str).str.strip()
-
+        # --- 2. NORMALIZACIÓN ---
+        print("🔍 PASO 3: Normalizando lugares...")
         df_equiv = obtener_df_de_sheets("Equiv Lugares", "Hoja 1")
         if not df_equiv.empty:
-            # Creamos el mapeo: clave minúscula -> valor normalizado
-            mapeo_lugares = {str(k).lower().strip(): str(v).strip() for k, v in zip(df_equiv.iloc[:, 0], df_equiv.iloc[:, 1])}
+            mapeo_lugares = {str(k).lower().strip(): v for k, v in zip(df_equiv.iloc[:, 0], df_equiv.iloc[:, 1])}
             
-            # Normalizamos TODO el dataframe antes de comparar
-            df_principal['Lugar'] = df_principal['Lugar'].apply(lambda x: mapeo_lugares.get(x.lower(), x))
-            print("✅ Lugares normalizados uniformemente.")
+            def normalizar(lugar):
+                if not lugar: return ""
+                l_raw = str(lugar).strip()
+                l_lower = l_raw.lower()
+                return mapeo_lugares.get(l_lower, l_raw)
+
+            df_principal['Lugar'] = df_principal['Lugar'].apply(normalizar)
+            print("✅ Normalización completada.")
         
-        # 3. PREPARACIÓN DE FECHAS
+        # --- 3. PREPARACIÓN PARA DETECCIÓN ---
+        print("⚖️ PASO 4: Analizando duplicados (Estrategia de Índices)...")
         df_principal['Comienza_DT'] = pd.to_datetime(df_principal['Comienza'], errors='coerce')
-        # No borramos las filas con NaT, solo las ignoramos en la comparación para no perder el índice físico
+        df_principal = df_principal.dropna(subset=['Comienza_DT'])
         
         duplicados_para_registro = []
-        conteo_borrado_por_link = {} 
-        indices_procesados = set()
+        elementos_a_borrar_fisicamente = []
+        indices_procesados = set() # <--- Nombre correcto
         
-        # Próximo ID
+        # Obtener próximo ID disponible
         df_hist_dups = obtener_df_de_sheets("Duplicados", "Hoja 1")
         prox_id_num = 1
         if not df_hist_dups.empty and 'id_dup' in df_hist_dups.columns:
             try:
                 nums = df_hist_dups['id_dup'].astype(str).str.extract('(\d+)').dropna().astype(int)
-                if not nums.empty: prox_id_num = int(nums.max()) + 1
-            except: prox_id_num = 1
+                if not nums.empty: 
+                    prox_id_num = int(nums.max()) + 1
+            except: 
+                prox_id_num = 1
 
-        # 4. BUCLE DE DETECCIÓN MEJORADO
-        # Usamos range(len(df)) para asegurar que recorremos por posición física
-        for i in range(len(df_principal)):
-            if i in indices_procesados: continue
+        # --- 4. BUCLE DE DETECCIÓN (POR ÍNDICE) ---
+        for i, fila_a in df_principal.iterrows():
+            if i in indices_procesados: continue # <--- CORREGIDO AQUÍ (antes decía processed)
             
-            fila_a = df_principal.iloc[i]
-            if pd.isna(fila_a['Comienza_DT']): continue
-            
+            # Iniciamos el grupo con el índice de la fila actual
             grupo_indices = [i]
             
-            for j in range(i + 1, len(df_principal)):
-                if j in indices_procesados: continue
+            for j, fila_b in df_principal.iterrows():
+                if i == j or j in indices_procesados: continue
                 
-                fila_b = df_principal.iloc[j]
-                if pd.isna(fila_b['Comienza_DT']): continue
+                # A. MISMO LUGAR
+                mismo_lugar = str(fila_a['Lugar']).lower().strip() == str(fila_b['Lugar']).lower().strip()
                 
-                # COMPARACIÓN DE LUGAR (Ya normalizados arriba)
-                mismo_lugar = fila_a['Lugar'].lower() == fila_b['Lugar'].lower()
-                
-                # COMPARACIÓN DE TIEMPO
+                # B. CRITERIO TEMPORAL
                 t_a, t_b = fila_a['Comienza_DT'], fila_b['Comienza_DT']
+                tiene_hora_a = t_a.time() != datetime.min.time()
+                tiene_hora_b = t_b.time() != datetime.min.time()
                 
-                if t_a.time() != datetime.min.time() and t_b.time() != datetime.min.time():
-                    # Si ambos tienen hora, margen de 1 hora
+                if tiene_hora_a and tiene_hora_b:
                     coincide_tiempo = abs(t_a - t_b) <= timedelta(hours=1)
                 else:
-                    # Si alguno no tiene hora, comparamos solo fecha
                     coincide_tiempo = t_a.date() == t_b.date()
                 
-                # OPCIONAL: También comparar nombre del evento (primeras 10 letras por si varía algo)
-                mismo_nombre = fila_a['Eventos'][:10].lower() == fila_b['Eventos'][:10].lower()
-
+                # Si coinciden, guardamos el índice j
                 if mismo_lugar and coincide_tiempo:
                     grupo_indices.append(j)
                     indices_procesados.add(j)
             
+            # Si el grupo tiene más de un integrante, procesamos
             if len(grupo_indices) > 1:
                 indices_procesados.add(i)
                 letras = "ABCDEFGHIJKL"
-                print(f"🚩 Duplicado: {fila_a['Eventos']} ({len(grupo_indices)} ocurrencias)")
+                print(f"🚩 Duplicado Detectado: {fila_a['Eventos']} (ID Grupo: {prox_id_num})")
                 
-                for idx, idx_pos in enumerate(grupo_indices):
-                    ev = df_principal.iloc[idx_pos]
+                for idx, idx_fila in enumerate(grupo_indices):
+                    # Recuperamos la fila original por su índice
+                    ev = df_principal.loc[idx_fila]
                     ev_copy = ev.copy()
                     ev_copy['id_dup'] = f"{prox_id_num}{letras[idx]}"
                     duplicados_para_registro.append(ev_copy)
                     
-                    if idx > 0: # Si no es la primera, se marca para borrar
-                        clave = (ev['Fuente'], str(ev['Origen']))
-                        conteo_borrado_por_link[clave] = conteo_borrado_por_link.get(clave, 0) + 1
+                    # Guardamos para borrado físico posterior (excepto el primero A)
+                    if idx > 0:
+                        elementos_a_borrar_fisicamente.append({
+                            'Fuente': ev['Fuente'],
+                            'Origen': str(ev['Origen'])
+                        })
                 
                 prox_id_num += 1
 
-        # 5. REGISTRO Y LIMPIEZA (Igual que antes)
+        # --- 5. REGISTRO EN "DUPLICADOS" ---
         if duplicados_para_registro:
-            df_final = pd.DataFrame(duplicados_para_registro)
-            cols = ['id_dup'] + [c for c in df_final.columns if c not in ['id_dup', 'Comienza_DT']]
-            subir_a_google_sheets(df_final[cols], "Duplicados", "Hoja 1")
+            df_dups_final = pd.DataFrame(duplicados_para_registro)
             
-            print("🗑️ Limpiando duplicados de las fuentes...")
-            # Aquí va tu Paso 6 de limpieza inteligente...
-            # [Se mantiene igual al anterior]
+            # Reordenar columnas: id_dup primero
+            cols = ['id_dup'] + [c for c in df_dups_final.columns if c not in ['id_dup', 'Comienza_DT']]
+            df_dups_final = df_dups_final[cols]
+            
+            subir_a_google_sheets(df_dups_final, "Duplicados", "Hoja 1")
+            print(f"✅ PASO 5: {len(duplicados_para_registro)} filas enviadas a Duplicados.")
+
+            # --- 6. BORRADO FÍSICO EN ORIGEN ---
+            print("🗑️ PASO 6: Iniciando limpieza de fuentes originales...")
+            df_exenciones = obtener_df_de_sheets("Duplicados", "Hoja 2")
+            lista_exenciones = df_exenciones['Origen'].astype(str).tolist() if not df_exenciones.empty else []
+
+            for item in elementos_a_borrar_fisicamente:
+                if item['Origen'] in lista_exenciones:
+                    print(f"🛡️ EXENCIÓN: Se conserva '{item['Origen']}'")
+                else:
+                    tabla_dest = dict_fuentes.get(item['Fuente'])
+                    if tabla_dest:
+                        borrar_fila_por_origen(tabla_dest, "Hoja 1", item['Origen'])
+            
+            print("✨ Proceso completo de limpieza finalizado.")
         else:
-            print("✨ No se detectaron duplicados. Revisa si los nombres de los lugares en 'Entradas auto' coinciden con 'Equiv Lugares'.")
+            print("✨ No se hallaron duplicados con el nuevo criterio.")
 
     except Exception as e:
-        print(f"💥 ERROR: {e}")
+        print(f"💥 ERROR GENERAL: {e}")
+
+
 
 def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
     """Localiza y borra con autenticación integrada para evitar errores de name undefined"""
@@ -1642,6 +1677,7 @@ def obtener_df_de_sheets(nombre_tabla, nombre_hoja):
         return pd.DataFrame()
 
 procesar_duplicados_y_normalizar()
+
 
 
 
