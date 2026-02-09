@@ -686,7 +686,7 @@ def ejecutar_scraper_ticketek():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 log('TICKETEK')
-ejecutar_scraper_ticketek()
+#ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -962,7 +962,7 @@ def ejecutar_scraper_eden():
         return reporte
 log('')
 log('EDÉN')
-ejecutar_scraper_eden()
+#ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1200,7 +1200,7 @@ def ejecutar_scraper_eventbrite():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
     return reporte
 
-intentos_maximos = 3
+intentos_maximos = 0
 resultado_final = None
 log('')
 log('EVENTBRITE')
@@ -1439,10 +1439,155 @@ def ejecutar_scraper_ferias_y_congresos():
 
 # Ejecución
 print("Iniciando Ferias y Congresos...")
-ejecutar_scraper_ferias_y_congresos()
-destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar']
+#ejecutar_scraper_ferias_y_congresos()
+destinatarios=['furrutia@cordobaacelera.com.ar']
+#destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar]
 contenido_final_log = log_buffer.getvalue()
-enviar_log_smtp(contenido_final_log, destinatarios)
+#enviar_log_smtp(contenido_final_log, destinatarios)
+
+
+
+
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+import gspread
+
+def procesar_duplicados_y_normalizar():
+    print("🚀 PASO 0: Iniciando proceso de Normalización y Detección de Duplicados...")
+    
+    try:
+        # --- 1. CARGA DE DATOS PRINCIPALES ---
+        print("📊 PASO 1: Descargando 'Entradas auto' (Hoja 1)...")
+        df_principal = obtener_df_de_sheets("Entradas auto", "Hoja 1")
+        
+        if df_principal.empty:
+            print("❌ ERROR: El DataFrame de 'Entradas auto' está vacío. Abortando.")
+            return
+
+        # --- 2. CARGA DE EXENCIONES (HOJA 2 DE DUPLICADOS) ---
+        print("🛡️ PASO 2: Cargando lista de exenciones (Hoja 2 de Duplicados)...")
+        df_exenciones = obtener_df_de_sheets("Duplicados", "Hoja 2")
+        lista_exenciones = []
+        if not df_exenciones.empty and 'Origen' in df_exenciones.columns:
+            lista_exenciones = df_exenciones['Origen'].astype(str).tolist()
+            print(f"✅ Se cargaron {len(lista_exenciones)} links exentos de borrado.")
+        else:
+            print("⚠️ Advertencia: No se encontraron exenciones en la Hoja 2.")
+
+        # --- 3. NORMALIZACIÓN DE LUGARES ---
+        print("🔍 PASO 3: Normalizando lugares con 'Equiv Lugares'...")
+        df_equiv = obtener_df_de_sheets("Equiv Lugares", "Hoja 1")
+        
+        if not df_equiv.empty:
+            mapeo_lugares = dict(zip(df_equiv.iloc[:, 0], df_equiv.iloc[:, 1]))
+            lugares_no_encontrados = []
+            
+            def normalizar(lugar):
+                if not lugar: return ""
+                l_str = str(lugar).strip()
+                if l_str in mapeo_lugares: return mapeo_lugares[l_str]
+                if l_str not in lugares_no_encontrados and l_str != "No detectado":
+                    lugares_no_encontrados.append(l_str)
+                return l_str
+
+            df_principal['Lugar'] = df_principal['Lugar'].apply(normalizar)
+            
+            if lugares_no_encontrados:
+                df_desconocidos = pd.DataFrame(lugares_no_encontrados, columns=['Lugar Desconocido'])
+                subir_a_google_sheets(df_desconocidos, "Equiv Lugares", "Hoja 2")
+                print(f"📝 Se registraron {len(lugares_no_encontrados)} lugares nuevos en Hoja 2 de 'Equiv Lugares'.")
+        
+        # --- 4. DETECCIÓN DE DUPLICADOS ---
+        print("⚖️ PASO 4: Analizando eventos duplicados (+/- 1h)...")
+        df_principal['Comienza_DT'] = pd.to_datetime(df_principal['Comienza'], errors='coerce')
+        df_principal = df_principal.dropna(subset=['Comienza_DT'])
+        
+        duplicados_para_registro = []
+        indices_procesados = set()
+        
+        # Obtener próximo ID numérico
+        df_hist_dups = obtener_df_de_sheets("Duplicados", "Hoja 1")
+        prox_id_num = 1
+        if not df_hist_dups.empty and 'id_dup' in df_hist_dups.columns:
+            try:
+                nums = df_hist_dups['id_dup'].astype(str).str.extract('(\d+)').astype(int)
+                prox_id_num = int(nums.max()) + 1
+            except: prox_id_num = 1
+
+        # Algoritmo de comparación
+        for i, fila_a in df_principal.iterrows():
+            if i in indices_procesados: continue
+            grupo = [fila_a]
+            
+            for j, fila_b in df_principal.iterrows():
+                if i == j or j in indices_procesados: continue
+                
+                mismo_lugar = str(fila_a['Lugar']).lower() == str(fila_b['Lugar']).lower()
+                dif_fuente = fila_a['Fuente'] != fila_b['Fuente']
+                dif_tiempo = abs(fila_a['Comienza_DT'] - fila_b['Comienza_DT']) <= timedelta(hours=1)
+                
+                if mismo_lugar and dif_fuente and dif_tiempo:
+                    grupo.append(fila_b)
+                    indices_procesados.add(j)
+            
+            if len(grupo) > 1:
+                indices_procesados.add(i)
+                letras = "ABCDEFGHIJKL"
+                print(f"🚩 Grupo Duplicado: {fila_a['Eventos']} (ID: {prox_id_num})")
+                
+                for idx, ev in enumerate(grupo):
+                    ev_copy = ev.copy()
+                    ev_copy['id_dup'] = f"{prox_id_num}{letras[idx]}"
+                    duplicados_para_registro.append(ev_copy)
+                    
+                    # PROCESO DE BORRADO (Solo para B, C, etc.)
+                    if idx > 0:
+                        origen_id = str(ev['Origen'])
+                        
+                        # CHEQUEO DE EXENCIÓN
+                        if origen_id in lista_exenciones:
+                            print(f"🛡️ EXENCIÓN DETECTADA: No se borrará '{origen_id}' (está en Hoja 2).")
+                        else:
+                            fuente_original = ev['Fuente']
+                            tabla_destino = dict_fuentes.get(fuente_original)
+                            if tabla_destino:
+                                borrar_fila_por_origen(tabla_destino, "Hoja 1", origen_id)
+                            else:
+                                print(f"❌ Sin mapeo para fuente: {fuente_original}")
+                
+                prox_id_num += 1
+
+        # --- 5. REGISTRO FINAL ---
+        if duplicados_para_registro:
+            df_dups_final = pd.DataFrame(duplicados_para_registro).drop(columns=['Comienza_DT'])
+            subir_a_google_sheets(df_dups_final, "Duplicados", "Hoja 1")
+            print(f"✅ Proceso terminado. {len(duplicados_para_registro)} registros procesados.")
+        else:
+            print("✨ No se hallaron duplicados nuevos.")
+
+    except Exception as e:
+        print(f"💥 ERROR en procesar_duplicados_y_normalizar: {e}")
+
+def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
+    """Localiza el link 'Origen' y elimina la fila en el Sheet original"""
+    try:
+        client = gspread_authorize()
+        sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
+        data = sheet.get_all_values()
+        df_temp = pd.DataFrame(data[1:], columns=data[0])
+        
+        if 'Origen' in df_temp.columns:
+            match_idx = df_temp.index[df_temp['Origen'] == origen_link].tolist()
+            if match_idx:
+                fila_sheets = match_idx[0] + 2 # +1 por index 0 y +1 por header
+                sheet.delete_rows(fila_sheets)
+                print(f"   🗑️ Fila {fila_sheets} eliminada de '{nombre_tabla}'")
+            else:
+                print(f"   ⚠️ Link no encontrado en '{nombre_tabla}': {origen_link}")
+    except Exception as e:
+        print(f"   ❌ Error borrando en '{nombre_tabla}': {e}")
+
 
 
 
