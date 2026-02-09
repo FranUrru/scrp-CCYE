@@ -1508,7 +1508,7 @@ def procesar_duplicados_y_normalizar():
 
         # --- 4. BUCLE DE DETECCIÓN (POR ÍNDICE) ---
         for i, fila_a in df_principal.iterrows():
-            if i in indices_processed: continue
+            if i in indices_procesados: continue
             
             # Iniciamos el grupo con el índice de la fila actual
             grupo_indices = [i]
@@ -1669,6 +1669,7 @@ def obtener_df_de_sheets(nombre_tabla, nombre_hoja):
         return pd.DataFrame()
 
 procesar_duplicados_y_normalizar()
+
 
 
 
