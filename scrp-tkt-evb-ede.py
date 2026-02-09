@@ -1459,7 +1459,7 @@ def procesar_duplicados_y_normalizar():
     try:
         # --- 1. CARGA DE DATOS PRINCIPALES ---
         print("📊 PASO 1: Descargando 'Entradas auto' (Hoja 1)...")
-        df_principal = obtener_df_de_sheets("Entradas auto", "Hoja 1")
+        df_principal = obtener_df_de_sheets("Entradas auto", "Eventos")
         
         if df_principal.empty:
             print("❌ ERROR: El DataFrame de 'Entradas auto' está vacío. Abortando.")
@@ -1659,6 +1659,7 @@ def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
         print(f"   ❌ Error al intentar borrar en '{nombre_tabla}': {e}")
 
 procesar_duplicados_y_normalizar()
+
 
 
 
