@@ -913,6 +913,7 @@ def ejecutar_scraper_eden():
                 # USAMOS SOLO FECHA (sin hora/min/seg) para que coincida con lo ya subido hoy
                 'fecha de carga': datetime.today().strftime('%Y-%m-%d') 
             }).dropna(subset=['Comienza'])
+        df_final = df_final.drop_duplicates(subset=['Origen'])
         subir_a_google_sheets(df_final, 'Eden historico (Auto)', 'Hoja 1')
 
         # 6. Subida de Rechazados
@@ -1839,6 +1840,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
