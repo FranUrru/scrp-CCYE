@@ -1703,14 +1703,6 @@ def procesar_duplicados_y_normalizar():
             df_final = pd.DataFrame(duplicados_para_registro)
             cols = ['id_dup'] + [c for c in df_final.columns if c != 'id_dup']
             subir_a_google_sheets(df_final[cols], "Duplicados", "Hoja 1")
-            
-            # --- LIMPIEZA ---
-            dict_fuentes = {
-                "Eden Entradas": "base_h_scrp_eden",
-                "Ticketek": "base_h_scrp_ticketek",
-                "eventbrite": "base_h_scrp_eventbrite",
-                "Ferias y Congresos": "base_h_scrp_feriasycongresos"
-            }
 
             for (fuente, origen), cantidad in conteo_borrado_por_link.items():
                 tabla_dest = dict_fuentes.get(fuente)
@@ -1786,6 +1778,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
