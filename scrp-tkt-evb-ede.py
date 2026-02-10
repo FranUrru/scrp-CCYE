@@ -1738,15 +1738,29 @@ def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
         if len(data) <= 1: return
         
         df_temp = pd.DataFrame(data[1:], columns=data[0])
-        if 'Origen' in df_temp.columns:
-            match_idx = df_temp.index[df_temp['Origen'] == origen_link].tolist()
+        
+        # --- MEJORA: Detectar cuál es la columna de ID ---
+        # Buscamos la primera coincidencia de estas columnas en la hoja
+        columnas_posibles = ['Origen', 'href', 'Link', 'URL']
+        col_id = next((c for c in columnas_posibles if c in df_temp.columns), None)
+
+        if col_id:
+            # Buscamos el link. Usamos str() para asegurar comparación de texto
+            match_idx = df_temp.index[df_temp[col_id].astype(str) == str(origen_link)].tolist()
+            
             if match_idx:
                 # Borra la primera coincidencia que encuentre
+                # +2 porque: +1 por índice 0 de pandas y +1 por el encabezado de Sheets
                 fila_a_borrar = match_idx[0] + 2
                 sheet.delete_rows(fila_a_borrar)
-                print(f"   🗑️ Eliminado de '{nombre_tabla}': {origen_link}")
+                print(f"   🗑️ Eliminado de '{nombre_tabla}' (columna {col_id}): {origen_link}")
+            else:
+                print(f"   ⚠️ No se encontró el link {origen_link} en la columna {col_id}")
+        else:
+            print(f"   ❌ ERROR: No se encontró ninguna columna de ID (Origen/href/Link) en {nombre_tabla}")
+
     except Exception as e:
-        print(f"   ❌ Error borrando en '{nombre_tabla}': {e}")
+        print(f"   ❌ Error crítico borrando en '{nombre_tabla}': {e}")
 
 def obtener_df_de_sheets(nombre_tabla, nombre_hoja):
     import os, json, gspread
@@ -1778,6 +1792,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
