@@ -476,14 +476,12 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
                 
                 # --- 4. ELIMINAR DUPLICADOS (Mantenemos el registro más antiguo) ---
                 # Definimos el subset para drop_duplicates basándonos en lo que exista en el DF
-                subset_duplicados = [c for c in (columnas_id + columnas_contenido) if c in combined_df.columns]
+                criterio_unicidad = [id_col] if id_col else subset_duplicados
                 
-                if subset_duplicados:
-                    if col_fecha_carga:
-                        # Ordenamos ascendente para que 'keep=first' se quede con la fecha más vieja
-                        combined_df = combined_df.sort_values(by=col_fecha_carga, ascending=True)
-                    
-                    combined_df = combined_df.drop_duplicates(subset=subset_duplicados, keep='first')
+                if criterio_unicidad:
+                    # Ordenamos para que lo más nuevo (o lo que ya estaba) se mantenga según prefieras
+                    # Aquí mantenemos la primera aparición (la más antigua en la hoja)
+                    combined_df = combined_df.drop_duplicates(subset=criterio_unicidad, keep='first')
 
                 # --- 5. ORDENAR PARA VISTA DE USUARIO (Lo más nuevo arriba) ---
                 if col_fecha_carga:
@@ -909,7 +907,7 @@ def ejecutar_scraper_eden():
                 'Alcance': None,
                 'Costo de entrada': df_norm['precio_promedio'],
                 'Fuente': 'Eden Entradas',
-                'Origen': df_norm['href'].str.replace('..', 'https://www.edenentradas.com.ar', regex=False),
+                'Origen': df_norm['href'].str.replace('..', 'https://www.edenentradas.ar', regex=False),
                 # USAMOS SOLO FECHA (sin hora/min/seg) para que coincida con lo ya subido hoy
                 'fecha de carga': datetime.today().strftime('%Y-%m-%d') 
             }).dropna(subset=['Comienza'])
@@ -1840,6 +1838,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
