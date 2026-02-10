@@ -1718,6 +1718,95 @@ def procesar_duplicados_y_normalizar():
     except Exception as e:
         print(f"💥 ERROR: {e}")
 
+def procesar_duplicados_y_normalizar():
+    print("🚀 Iniciando proceso de limpieza estricta...")
+    
+    try:
+        df_principal = obtener_df_de_sheets("Entradas auto", "Eventos")
+        if df_principal.empty: return
+
+        # 1. NORMALIZACIÓN Y LOG DE FALTANTES (Hoja 2)
+        df_equiv = obtener_df_de_sheets("Equiv Lugares", "Hoja 1")
+        mapeo_lugares = {}
+        lugares_no_encontrados = set()
+
+        if not df_equiv.empty:
+            mapeo_lugares = {str(k).lower().strip(): str(v).strip() for k, v in zip(df_equiv.iloc[:, 0], df_equiv.iloc[:, 1])}
+        
+        def normalizar_lugar(l):
+            l_str = str(l).lower().strip()
+            if l_str in mapeo_lugares:
+                return mapeo_lugares[l_str]
+            if l_str != "" and l_str != "nan":
+                lugares_no_encontrados.add(l) # Registro para Hoja 2
+            return l_str
+
+        df_principal['Lugar_Norm'] = df_principal['Lugar'].apply(normalizar_lugar)
+        
+        # Subir faltantes a Hoja 2 de Equiv Lugares
+        if lugares_no_encontrados:
+            df_faltantes = pd.DataFrame(list(lugares_no_encontrados), columns=["Lugar no encontrado"])
+            subir_a_google_sheets(df_faltantes, "Equiv Lugares", "Hoja 2")
+
+        # 2. PROCESAMIENTO DE FECHAS
+        df_principal['Comienza_DT'] = pd.to_datetime(df_principal['Comienza'], errors='coerce').dt.date
+
+        duplicados_para_registro = []
+        indices_ya_agrupados = set()
+        prox_id_num = 1 # Deberías calcular el max id_dup de la hoja Duplicados
+
+        # 3. BUCLE DE DETECCIÓN (Lógica limpia)
+        for i in range(len(df_principal)):
+            if i in indices_ya_agrupados: continue
+            
+            fila_a = df_principal.iloc[i]
+            if pd.isna(fila_a['Comienza_DT']): continue
+
+            # Buscamos coincidencias para ESTA fila i
+            grupo_actual = [i]
+            for j in range(i + 1, len(df_principal)):
+                if j in indices_ya_agrupados: continue
+                
+                fila_b = df_principal.iloc[j]
+                
+                # CRITERIO TEÓRICO ESTRICTO:
+                mismo_lugar = (str(fila_a['Lugar_Norm']) == str(fila_b['Lugar_Norm'])) and fila_a['Lugar_Norm'] != ""
+                misma_fecha = (fila_a['Comienza_DT'] == fila_b['Comienza_DT'])
+
+                if mismo_lugar and misma_fecha:
+                    grupo_actual.append(j)
+
+            # Si encontramos más de una fila con mismo lugar y fecha
+            if len(grupo_actual) > 1:
+                letras = "ABCDEFGHIJKL"
+                for idx, idx_pos in enumerate(grupo_actual):
+                    indices_ya_agrupados.add(idx_pos) # Marcamos para no volver a procesar
+                    
+                    ev = df_principal.iloc[idx_pos].copy()
+                    ev['id_dup'] = f"{prox_id_num}{letras[idx]}"
+                    
+                    # Guardamos para la hoja Duplicados
+                    duplicados_para_registro.append(ev.drop(['Lugar_Norm', 'Comienza_DT']))
+                    
+                    # BORRADO: Si no es el primero (A), se borra de la fuente
+                    if idx > 0:
+                        tabla_dest = dict_fuentes.get(ev['Fuente'])
+                        if tabla_dest:
+                            borrar_fila_por_origen(tabla_dest, "Hoja 1", ev['Origen'])
+                
+                prox_id_num += 1
+
+        # 4. FINALIZAR
+        if duplicados_para_registro:
+            df_final = pd.DataFrame(duplicados_para_registro)
+            subir_a_google_sheets(df_final, "Duplicados", "Hoja 1")
+            print("✅ Duplicados procesados correctamente.")
+        else:
+            print("✨ No se encontraron duplicados bajo los criterios (Mismo Lugar + Misma Fecha).")
+
+    except Exception as e:
+        print(f"💥 ERROR: {e}")
+
 # --- FUNCIONES DE BORRADO Y LECTURA ---
 
 def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
@@ -1795,6 +1884,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
