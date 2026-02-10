@@ -1579,7 +1579,7 @@ def ejecutar_scraper_turismo_cba():
         if not df_final.empty:
             # Subir a Google Sheets (usando tu función global)
             # Nota: Asegúrate de que el nombre del archivo en Sheets sea el correcto
-            subir_a_google_sheets(df_final, 'Turismo CBA (Auto)', 'Eventos')
+            subir_a_google_sheets(df_final, 'Turismo CBA (Auto)', 'Hoja 1')
             
             reporte["estado"] = "Exitoso"
             reporte["filas_procesadas"] = len(df_final)
@@ -1778,6 +1778,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
