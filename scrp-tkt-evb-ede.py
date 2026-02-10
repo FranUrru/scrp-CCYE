@@ -1606,7 +1606,8 @@ dict_fuentes = {
     'Eden Entradas': 'Eden historico (Auto)',
     'Ticketek': 'Ticketek historico (Auto)',
     'Ferias y Congresos': 'Ferias y Congresos (Auto)',
-    'eventbrite': 'base_h_scrp_eventbrite'  # Asegúrate de que coincida con lo que sube el scraper
+    'eventbrite': 'base_h_scrp_eventbrite',
+    'Agencia Turismo Cba':'Turismo CBA (Auto)'# Asegúrate de que coincida con lo que sube el scraper
 }
 
 def procesar_duplicados_y_normalizar():
@@ -1794,6 +1795,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
