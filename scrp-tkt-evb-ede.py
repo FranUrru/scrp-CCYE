@@ -1454,7 +1454,7 @@ def ejecutar_scraper_ferias_y_congresos():
 print("Iniciando Ferias y Congresos...")
 ejecutar_scraper_ferias_y_congresos()
 #destinatarios=['furrutia@cordobaacelera.com.ar']
-destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar]
+destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 
 
 
@@ -1636,6 +1636,7 @@ procesar_duplicados_y_normalizar()
 
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
