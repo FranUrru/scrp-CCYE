@@ -699,7 +699,7 @@ def ejecutar_scraper_ticketek():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 log('TICKETEK')
-ejecutar_scraper_ticketek()
+#ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -975,7 +975,7 @@ def ejecutar_scraper_eden():
         return reporte
 log('')
 log('EDÉN')
-ejecutar_scraper_eden()
+#ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1213,7 +1213,7 @@ def ejecutar_scraper_eventbrite():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
     return reporte
 
-intentos_maximos = 3
+intentos_maximos = 0
 resultado_final = None
 log('')
 log('EVENTBRITE')
@@ -1452,12 +1452,156 @@ def ejecutar_scraper_ferias_y_congresos():
 
 # Ejecución
 print("Iniciando Ferias y Congresos...")
-ejecutar_scraper_ferias_y_congresos()
-#destinatarios=['furrutia@cordobaacelera.com.ar']
-destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
+#ejecutar_scraper_ferias_y_congresos()
 
 
+log('')
+log('Secretaría de Turismo Municipal')
+import time
+import pandas as pd
+from datetime import datetime
+from bs4 import BeautifulSoup
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
+def ejecutar_scraper_turismo_cba():
+    """
+    Scraper para Agencia Córdoba Turismo adaptado al formato estándar.
+    """
+    driver = None
+    reporte = {
+        "nombre": "Agencia Turismo Cba",
+        "estado": "Pendiente",
+        "filas_procesadas": 0,
+        "error": None,
+        "inicio": datetime.now().strftime('%H:%M:%S')
+    }
+    
+    # DataFrame para auditoría de descartes
+    df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link'])
+
+    def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href):
+        nonlocal df_rechazados
+        nuevo = pd.DataFrame([{
+            'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
+            'Motivo': motivo, 'Linea': str(linea), 'Fuente': fuente, 'Link': href
+        }])
+        df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
+
+    def formatear_fecha(fecha_str):
+        try:
+            if not fecha_str or "N/A" in str(fecha_str): return None
+            fecha_str = " ".join(fecha_str.split())
+            dt = datetime.strptime(fecha_str, "%d/%m/%Y %H:%M")
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+        except:
+            return None
+
+    try:
+        driver = iniciar_driver() # Usa tu función global
+        url_agenda = "https://turismo.cordoba.gob.ar/agenda/agenda-turistica"
+        exclusiones = ["edenentradas", "ticketek", "quality"]
+        
+        driver.get(url_agenda)
+        print(f"🚀 {reporte['nombre']}: Cargando y expandiendo agenda...")
+
+        # 1. Expandir contenido "Cargar Más"
+        while True:
+            try:
+                boton = WebDriverWait(driver, 8).until(
+                    EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), 'Cargar Más')]"))
+                )
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", boton)
+                time.sleep(1)
+                driver.execute_script("arguments[0].click();", boton)
+                time.sleep(3)
+            except:
+                break # No hay más botón
+
+        # 2. Parsear contenido
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        cards = soup.find_all('div', class_='card')
+        eventos_lista = []
+        
+        for card in cards:
+            try:
+                # --- Link y Filtros ---
+                link_tag = card.find('a', href=True)
+                fuente_link = link_tag['href'].lower() if link_tag else url_agenda
+                
+                # --- Nombre y Locación ---
+                nombre = card.find('h4', class_='card-title').get_text(strip=True) if card.find('h4') else "Sin Nombre"
+                locacion = card.find('p', class_='lugar').get_text(strip=True) if card.find('p', class_='lugar') else ""
+                
+                # Filtrado por plataformas ya cubiertas
+                if any(p in fuente_link for p in exclusiones):
+                    registrar_rechazo(nombre, locacion, "N/A", f"Exclusión: Plataforma externa ({fuente_link})", "67", "Turismo Cba", fuente_link)
+                    continue
+
+                # --- Fechas ---
+                fechas_p = card.find_all('p', class_='fs-4')
+                inicio_raw = fechas_p[0].get_text(" ", strip=True).replace("hs", "").strip() if len(fechas_p) > 0 else ""
+                fin_raw = fechas_p[1].get_text(" ", strip=True).replace("hs", "").strip() if len(fechas_p) > 1 else ""
+                
+                fecha_inicio = formatear_fecha(inicio_raw)
+                fecha_fin = formatear_fecha(fin_raw)
+
+                if not fecha_inicio:
+                    registrar_rechazo(nombre, locacion, inicio_raw, "Error de formato de fecha o fecha vacía", "78", "Turismo Cba", fuente_link)
+                    continue
+
+                # --- Precio ---
+                footer_txt = card.find('div', class_='footer').get_text(strip=True) if card.find('div', class_='footer') else ""
+                precio = "0" if "Gratuito" in footer_txt else footer_txt.replace("Precio", "").replace("$", "").strip()
+
+                # --- Append al formato final ---
+                eventos_lista.append({
+                    "Eventos": nombre,
+                    "Lugar": locacion,
+                    "Comienza": fecha_inicio,
+                    "Finaliza": fecha_fin if fecha_fin else fecha_inicio,
+                    "Tipo de evento": "",
+                    "Detalle": "",
+                    "Alcance": "",
+                    "Costo de entrada": precio,
+                    "Fuente": "Agencia Turismo Cba",
+                    "Origen": fuente_link,
+                    "Fecha Scrp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+
+            except Exception as e:
+                continue
+
+        # 3. Procesamiento final y subida
+        df_final = pd.DataFrame(eventos_lista)
+        
+        if not df_final.empty:
+            # Subir a Google Sheets (usando tu función global)
+            # Nota: Asegúrate de que el nombre del archivo en Sheets sea el correcto
+            subir_a_google_sheets(df_final, 'Turismo CBA (Auto)', 'Eventos')
+            
+            reporte["estado"] = "Exitoso"
+            reporte["filas_procesadas"] = len(df_final)
+        else:
+            reporte["estado"] = "Sin datos"
+
+        # Subir rechazados si existen
+        if not df_rechazados.empty:
+            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
+
+    except Exception as e:
+        reporte["estado"] = "Fallido"
+        reporte["error"] = str(e)
+        print(f"❌ Error en Agencia Turismo Cba: {e}")
+    
+    finally:
+        if driver:
+            driver.quit()
+        reporte["fin"] = datetime.now().strftime('%H:%M:%S')
+        return reporte
+
+ejecutar_scraper_turismo_cba()
 dict_fuentes = {
     'Eden Entradas': 'Eden historico (Auto)',
     'Ticketek': 'Ticketek historico (Auto)',
@@ -1634,8 +1778,15 @@ indices_processed = set()
 procesar_duplicados_y_normalizar()
 
 
+
+
+
+
+destinatarios=['furrutia@cordobaacelera.com.ar']
+#destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
