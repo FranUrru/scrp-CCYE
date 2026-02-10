@@ -699,7 +699,7 @@ def ejecutar_scraper_ticketek():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 log('TICKETEK')
-#ejecutar_scraper_ticketek()
+ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -975,7 +975,7 @@ def ejecutar_scraper_eden():
         return reporte
 log('')
 log('EDÉN')
-#ejecutar_scraper_eden()
+ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1213,7 +1213,7 @@ def ejecutar_scraper_eventbrite():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
     return reporte
 
-intentos_maximos = 0
+intentos_maximos = 3
 resultado_final = None
 log('')
 log('EVENTBRITE')
@@ -1452,7 +1452,7 @@ def ejecutar_scraper_ferias_y_congresos():
 
 # Ejecución
 print("Iniciando Ferias y Congresos...")
-#ejecutar_scraper_ferias_y_congresos()
+ejecutar_scraper_ferias_y_congresos()
 
 
 log('')
@@ -1884,6 +1884,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
