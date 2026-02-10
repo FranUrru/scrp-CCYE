@@ -272,101 +272,56 @@ def clean_data(df):
 from urllib.parse import quote
 
 def process_hrefs(driver, df):
-
     prices = []
-
     lugares = []
-
     descriptions = []
-
     errors = []  # Lista para almacenar los errores
 
-
-
     for href in df['href']:
-
         if href:  # verifica si el href existe.
-
             full_href = "https://" + quote(href)  # agrega el esquema y codifica la url.
-
             try:
-
                 if href.count('/') == 2:
-
                     details = extract_details_from_page(driver, full_href)
-
                 elif href.count('/') == 1:
-
                     driver.get(full_href)
-
                     time.sleep(2)
 
                     soup = BeautifulSoup(driver.page_source, 'html.parser')
-
                     location_links = soup.find_all('a', class_='artist-shows-item')
-
                     details = {'price': None, 'lugar': None, 'description': None}  # Inicializa details
 
                     for link in location_links:
-
                         location_data = link.get('data-venue-locality')
-
                         if location_data and 'Córdoba' in location_data:
-
                             location_href = "https://ticketek.com.ar/" + quote(link.get('data-link'))
-
                             details = extract_details_from_location(driver, location_href)
-
                             break
-
                 else:
-
                     details = {'price': None, 'lugar': None, 'description': None}
 
-
-
                 prices.append(details.get('price'))
-
                 lugares.append(details.get('lugar'))
-
                 descriptions.append(details.get('description'))
-
                 errors.append(details.get('error') if 'error' in details else None)  # Almacena el error, si existe
 
-
-
             except Exception as e:
-
                 log(f"Error processing {full_href}: {e}")
-
                 prices.append(None)
-
                 lugares.append(None)
-
                 descriptions.append(None)
-
                 errors.append(str(e))  # Almacena el error
 
         else:
-
             prices.append(None)
-
             lugares.append(None)
-
             descriptions.append(None)
-
             errors.append(None)  # No hay error si no hay href
 
-
-
     df['price'] = prices
-
     df['lugar'] = lugares
-
     df['description'] = descriptions
-
     df['error'] = errors  # Agrega la columna de errores
-
     return df
 
 def reordenar_y_agregar_columnas(df):
@@ -1884,6 +1839,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
