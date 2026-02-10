@@ -1781,6 +1781,8 @@ def obtener_df_de_sheets(nombre_tabla, nombre_hoja):
 
 
 indices_processed = set()
+log('')
+log('Detección y procesamiento de duplicados')
 procesar_duplicados_y_normalizar()
 
 
@@ -1792,6 +1794,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
