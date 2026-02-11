@@ -1380,7 +1380,9 @@ def ejecutar_scraper_ferias_y_congresos():
         df_final = pd.DataFrame(raw_data)
         # --- 4. Formateo y Orden Final ---
         if raw_data:
+            print('RAW DATA ENCONTRADA')
             df_final = pd.DataFrame(raw_data)
+            print(f"Longitud df_final post raw_data:{len(df_final}")
             
             # Aseguramos el orden exacto de las columnas antes de enviar
             columnas_ordenadas = [
@@ -1391,6 +1393,7 @@ def ejecutar_scraper_ferias_y_congresos():
             
             # Reindexamos para asegurar el orden y agregamos la fecha de carga
             df_final = df_final[columnas_ordenadas]
+            print(f"Longitud df_final post columnas ordenadas{len(df_final)}")
             df_final['fecha de carga'] = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
             
             # Subida a Sheets
@@ -1851,6 +1854,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
