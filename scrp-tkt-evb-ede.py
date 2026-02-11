@@ -463,7 +463,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
                 else:
                     conteo_reales = len(df_entrada)
 
-                combined_df = pd.concat([existing_df, df_entrada], ignore_index=True)
+                combined_df = pd.concat([existing_df, df_nuevas_reales], ignore_index=True)
             else:
                 combined_df = df_entrada
                 conteo_reales = len(df_entrada)
@@ -910,7 +910,7 @@ def ejecutar_scraper_eden():
                 'Fuente': 'Eden Entradas',
                 'Origen': df_norm['href'].str.replace('..', 'https://www.edenentradas.ar', regex=False),
                 # USAMOS SOLO FECHA (sin hora/min/seg) para que coincida con lo ya subido hoy
-                'fecha de carga': datetime.today().strftime('%Y-%m-%d') 
+                'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S') 
             }).dropna(subset=['Comienza'])
         df_final = df_final.drop_duplicates(subset=['Origen'])
         subir_a_google_sheets(df_final, 'Eden historico (Auto)', 'Hoja 1')
@@ -1839,6 +1839,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
