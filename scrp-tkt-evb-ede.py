@@ -1382,7 +1382,7 @@ def ejecutar_scraper_ferias_y_congresos():
         if raw_data:
             print('RAW DATA ENCONTRADA')
             df_final = pd.DataFrame(raw_data)
-            print(f"Longitud df_final post raw_data:{len(df_final}")
+            print(f"Longitud df_final post raw_data:{len(df_final)}")
             
             # Aseguramos el orden exacto de las columnas antes de enviar
             columnas_ordenadas = [
@@ -1854,6 +1854,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
