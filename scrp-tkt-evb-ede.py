@@ -527,7 +527,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
             
     return False
     
-def ejecutar_scraper_ticketek():
+def _ticketek():
     """
     Ejecuta el scraper y devuelve un reporte del estado.
     """
@@ -660,7 +660,7 @@ def ejecutar_scraper_ticketek():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 log('TICKETEK')
-#ejecutar_scraper_ticketek()
+ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -1176,7 +1176,7 @@ def ejecutar_scraper_eventbrite():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
     return reporte
 
-intentos_maximos = 0
+intentos_maximos = 3
 resultado_final = None
 log('')
 log('EVENTBRITE')
@@ -1415,7 +1415,7 @@ def ejecutar_scraper_ferias_y_congresos():
 
 # Ejecución
 print("Iniciando Ferias y Congresos...")
-#ejecutar_scraper_ferias_y_congresos()
+ejecutar_scraper_ferias_y_congresos()
 
 
 log('')
@@ -1564,7 +1564,7 @@ def ejecutar_scraper_turismo_cba():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 
-#ejecutar_scraper_turismo_cba()
+ejecutar_scraper_turismo_cba()
 dict_fuentes = {
     'Eden Entradas': 'Eden historico (Auto)',
     'Ticketek': 'Ticketek historico (Auto)',
@@ -1847,6 +1847,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
