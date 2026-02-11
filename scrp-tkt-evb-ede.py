@@ -441,79 +441,78 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
             
             # --- 1. PREPARACIÓN DE DATOS ENTRANTES ---
             df_entrada = df.copy()
-            conteo_reales = 0
+            conteo_reales = len(df_entrada)
             
-            # Columnas que definen un evento único (IDs y Contenido)
-            columnas_id = ['Origen', 'href', 'Link', 'URL']
-            columnas_contenido = ['Eventos', 'Nombre', 'title', 'Lugar', 'Locación', 'lugar', 'Comienza', 'date']
-            
-            # Buscamos qué columna de ID tiene este DF (ej: 'Origen' en , 'href' en Ticketek)
-            id_col = next((c for c in columnas_id if c in df_entrada.columns), None)
-            # Buscamos la columna de fecha de carga
-            col_fecha_carga = next((c for c in ['fecha de carga', 'Fecha Scrp'] if c in df_entrada.columns), None)
+            # --- NUEVA EXCEPCIÓN: SALTOS DE FILTRADO ---
+            tablas_sin_filtro = ['Ferias y Congresos (Auto)', 'Rechazados', 'Duplicados']
+            es_excepcion = nombre_tabla in tablas_sin_filtro
 
-            # --- 2. LÓGICA DE DETECCIÓN DE FILAS NUEVAS ---
-            if len(existing_data) > 1:
-                existing_df = pd.DataFrame(existing_data[1:], columns=existing_data[0])
-                
-                if id_col and id_col in existing_df.columns:
-                    # Filtramos las que realmente no están en la hoja usando el link/ID
-                    nuevas_filas_mask = ~df_entrada[id_col].astype(str).isin(existing_df[id_col].astype(str))
-                    df_nuevas_reales = df_entrada[nuevas_filas_mask].copy()  # ⭐ Solo las nuevas
-                    conteo_reales = len(df_nuevas_reales)
+            if es_excepcion:
+                # Si es una de estas tablas, simplemente concatenamos todo lo nuevo al final 
+                # (o manejamos la hoja como una lista acumulativa simple)
+                if len(existing_data) > 1:
+                    existing_df = pd.DataFrame(existing_data[1:], columns=existing_data[0])
+                    combined_df = pd.concat([existing_df, df_entrada], ignore_index=True)
                 else:
-                    df_nuevas_reales = df_entrada.copy()
-                    conteo_reales = len(df_entrada)
+                    combined_df = df_entrada
+                
+                print(f"ℹ️ Modo excepción: Subiendo todos los datos a '{nombre_tabla}' sin validar duplicados.")
             
-                combined_df = pd.concat([existing_df, df_nuevas_reales], ignore_index=True)  # ✅ CORRECCIÓN
             else:
-                # ⭐ CASO HOJA VACÍA: Todas las filas son nuevas
-                df_nuevas_reales = df_entrada.copy()
-                combined_df = df_entrada
-                conteo_reales = len(df_entrada)
+                # --- LÓGICA ORIGINAL DE DETECCIÓN DE FILAS NUEVAS ---
+                columnas_id = ['Origen', 'href', 'Link', 'URL']
+                columnas_contenido = ['Eventos', 'Nombre', 'title', 'Lugar', 'Locación', 'lugar', 'Comienza', 'date']
+                
+                id_col = next((c for c in columnas_id if c in df_entrada.columns), None)
+                col_fecha_carga = next((c for c in ['fecha de carga', 'Fecha Scrp'] if c in df_entrada.columns), None)
 
-            if not combined_df.empty:
-                # --- 3. LIMPIEZA DE TIMESTAMPS (Evita error JSON serializable) ---
-                # Convertimos todo a datetime para poder ordenar, luego a string para Sheets
-                if col_fecha_carga:
-                    combined_df[col_fecha_carga] = pd.to_datetime(combined_df[col_fecha_carga], errors='coerce')
+                if len(existing_data) > 1:
+                    existing_df = pd.DataFrame(existing_data[1:], columns=existing_data[0])
+                    
+                    if id_col and id_col in existing_df.columns:
+                        nuevas_filas_mask = ~df_entrada[id_col].astype(str).isin(existing_df[id_col].astype(str))
+                        df_nuevas_reales = df_entrada[nuevas_filas_mask].copy()
+                        conteo_reales = len(df_nuevas_reales)
+                    else:
+                        df_nuevas_reales = df_entrada.copy()
+                    
+                    combined_df = pd.concat([existing_df, df_nuevas_reales], ignore_index=True)
+                else:
+                    combined_df = df_entrada
 
-                # --- 4. ELIMINAR DUPLICADOS (Mantenemos el registro más antiguo) ---
-                # Definimos el subset para drop_duplicates basándonos en lo que exista en el DF
+                # --- ELIMINAR DUPLICADOS (Solo si NO es excepción) ---
                 if id_col:
                     criterio_unicidad = [id_col]
                 else:
-                    # Si no hay columna de ID, usamos las columnas de contenido que existan
                     criterio_unicidad = [c for c in columnas_contenido if c in combined_df.columns]
                 
                 if criterio_unicidad:
-                    # Ordenamos para que lo más nuevo (o lo que ya estaba) se mantenga según prefieras
-                    # Aquí mantenemos la primera aparición (la más antigua en la hoja)
                     combined_df = combined_df.drop_duplicates(subset=criterio_unicidad, keep='first')
 
-                # --- 5. ORDENAR PARA VISTA DE USUARIO (Lo más nuevo arriba) ---
+            # --- LÓGICA COMÚN DE FORMATEO (Post-procesamiento) ---
+            if not combined_df.empty:
+                col_fecha_carga = next((c for c in ['fecha de carga', 'Fecha Scrp'] if c in combined_df.columns), None)
+                
                 if col_fecha_carga:
+                    combined_df[col_fecha_carga] = pd.to_datetime(combined_df[col_fecha_carga], errors='coerce')
+                    # Ordenar: Lo más nuevo arriba
                     combined_df = combined_df.sort_values(by=col_fecha_carga, ascending=False)
 
-                # --- 6. FORMATEO FINAL ANTI-ERROR ---
-                # Esta es la parte crítica para evitar el error de "Object of type Timestamp"
                 def serializar_datos(val):
                     if pd.isna(val) or val is pd.NaT: return ""
                     if isinstance(val, (datetime, pd.Timestamp)):
                         return val.strftime('%Y-%m-%d %H:%M:%S')
                     return str(val) if isinstance(val, (dict, list)) else val
 
-                # Aplicamos a todo el DataFrame y manejamos infinitos/nulos
                 combined_df = combined_df.replace([np.inf, -np.inf], np.nan).fillna("")
                 data_final = combined_df.map(serializar_datos)
                 
-                # --- 7. SUBIDA FINAL ---
+                # Subida final
                 sheet.clear()
                 valores_a_subir = [data_final.columns.values.tolist()] + data_final.values.tolist()
                 sheet.update(valores_a_subir, value_input_option='USER_ENTERED')
                 
-                log(f"✅ Hoja '{nombre_tabla}' actualizada.")
-                log(f"📊 Se agregaron {conteo_reales} filas nuevas reales en {nombre_tabla}")
+                print(f"✅ Hoja '{nombre_tabla}' actualizada. Filas procesadas: {conteo_reales}")
                 return True 
             else:
                 print(f"⚠️ DataFrame vacío para {nombre_tabla}")
@@ -1855,6 +1854,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
