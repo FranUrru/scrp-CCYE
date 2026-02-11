@@ -1575,43 +1575,41 @@ def ejecutar_scraper_turismo_cba():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 
-#ejecutar_scraper_turismo_cba()
+
+
+#Importante el orden. Marca jerarquía. El primero se mantiene siempre a la hora de comparar duplicados y así...
 dict_fuentes = {
-    'Eden Entradas': 'Eden historico (Auto)',
-    'Ticketek': 'Ticketek historico (Auto)',
     'Ferias y Congresos': 'Ferias y Congresos (Auto)',
-    'eventbrite': 'base_h_scrp_eventbrite',
-    'Agencia Turismo Cba':'Turismo CBA (Auto)'# Asegúrate de que coincida con lo que sube el scraper
+    'Ticketek': 'Ticketek historico (Auto)',
+    'Eden Entradas': 'Eden historico (Auto)',
+    'Agencia Turismo Cba':'Turismo CBA (Auto)',
+    'eventbrite': 'base_h_scrp_eventbrite'
 }
 
 def procesar_duplicados_y_normalizar():
-    print("🚀 PASO 0: Iniciando proceso...")
+    print("🚀 Iniciando proceso de limpieza con Jerarquía de Fuentes...")
     
     try:
-        # 1. CARGA
         df_principal = obtener_df_de_sheets("Entradas auto", "Eventos")
         if df_principal.empty: return
 
-        # 2. NORMALIZACIÓN (Limpieza total)
+        # --- 1. NORMALIZACIÓN DE LUGARES ---
         df_equiv = obtener_df_de_sheets("Equiv Lugares", "Hoja 1")
+        mapeo_lugares = {}
         if not df_equiv.empty:
-            # Forzamos limpieza en el diccionario de equivalencias
             mapeo_lugares = {str(k).lower().strip(): str(v).strip() for k, v in zip(df_equiv.iloc[:, 0], df_equiv.iloc[:, 1])}
-            
-            # Normalizamos la columna Lugar en el DF principal
-            df_principal['Lugar_Norm'] = df_principal['Lugar'].apply(lambda x: mapeo_lugares.get(str(x).lower().strip(), str(x).strip()))
-            print("✅ Lugares normalizados.")
-        else:
-            df_principal['Lugar_Norm'] = df_principal['Lugar'].str.strip()
+        
+        df_principal['Lugar_Norm'] = df_principal['Lugar'].apply(
+            lambda l: mapeo_lugares.get(str(l).lower().strip(), str(l).lower().strip())
+        )
 
-        # 3. FECHAS
-        df_principal['Comienza_DT'] = pd.to_datetime(df_principal['Comienza'], errors='coerce')
-        
+        # --- 2. PROCESAMIENTO DE FECHAS ---
+        df_principal['Comienza_DT'] = pd.to_datetime(df_principal['Comienza'], errors='coerce').dt.date
+
         duplicados_para_registro = []
-        conteo_borrado_por_link = {} 
-        indices_procesados = set()
+        indices_ya_agrupados = set()
         
-        # Próximo ID
+        # Calcular el próximo ID para la hoja Duplicados
         df_hist_dups = obtener_df_de_sheets("Duplicados", "Hoja 1")
         prox_id_num = 1
         if not df_hist_dups.empty and 'id_dup' in df_hist_dups.columns:
@@ -1620,166 +1618,69 @@ def procesar_duplicados_y_normalizar():
                 if not nums.empty: prox_id_num = int(nums.max()) + 1
             except: prox_id_num = 1
 
-        # 4. BUCLE DE DETECCIÓN
-        print(f"⚖️ Analizando {len(df_principal)} filas...")
-        
-        for i in range(len(df_principal)):
-            if i in indices_procesados: continue
-            
-            fila_a = df_principal.iloc[i]
-            if pd.isna(fila_a['Comienza_DT']): continue
-            
-            grupo_indices = [i]
-            
-            for j in range(i + 1, len(df_principal)):
-                if j in indices_procesados: continue
-                
-                fila_b = df_principal.iloc[j]
-                if pd.isna(fila_b['Comienza_DT']): continue
-                
-                # A. COMPARACIÓN DE LUGAR (Usando la columna normalizada)
-                lugar_a = str(fila_a['Lugar_Norm']).lower().strip()
-                lugar_b = str(fila_b['Lugar_Norm']).lower().strip()
-                mismo_lugar = (lugar_a == lugar_b) and lugar_a != ""
-                
-                # B. COMPARACIÓN TEMPORAL
-                t_a, t_b = fila_a['Comienza_DT'], fila_b['Comienza_DT']
-                
-                # Si AMBOS tienen hora (no es 00:00:00), margen de 1 hora
-                if t_a.time() != datetime.min.time() and t_b.time() != datetime.min.time():
-                    coincide_tiempo = abs(t_a - t_b) <= timedelta(hours=1)
-                else:
-                    # Si al menos uno es solo fecha, comparamos días
-                    coincide_tiempo = t_a.date() == t_b.date()
-                
-                if mismo_lugar and coincide_tiempo:
-                    grupo_indices.append(j)
-                    indices_procesados.add(j)
-            
-            if len(grupo_indices) > 1:
-                indices_procesados.add(i)
-                letras = "ABCDEFGHIJKL"
-                log(f"🚩 DUPLICADO: {fila_a['Eventos']} y otros {len(grupo_indices)-1}")
-                
-                for idx, idx_pos in enumerate(grupo_indices):
-                    ev = df_principal.iloc[idx_pos].copy()
-                    ev['id_dup'] = f"{prox_id_num}{letras[idx]}"
-                    # Quitar columnas auxiliares antes de guardar
-                    duplicados_para_registro.append(ev.drop(['Lugar_Norm', 'Comienza_DT']))
-                    
-                    if idx > 0:
-                        clave = (ev['Fuente'], str(ev['Origen']))
-                        conteo_borrado_por_link[clave] = conteo_borrado_por_link.get(clave, 0) + 1
-                
-                prox_id_num += 1
+        # --- 3. BUCLE DE DETECCIÓN ---
+        # Creamos una lista de prioridades basada en el orden de dict_fuentes
+        prioridad_fuentes = {fuente: i for i, fuente in enumerate(dict_fuentes.keys())}
 
-        # 5. GUARDADO Y LIMPIEZA
-        if duplicados_para_registro:
-            df_final = pd.DataFrame(duplicados_para_registro)
-            cols = ['id_dup'] + [c for c in df_final.columns if c != 'id_dup']
-            subir_a_google_sheets(df_final[cols], "Duplicados", "Hoja 1")
-
-            for (fuente, origen), cantidad in conteo_borrado_por_link.items():
-                tabla_dest = dict_fuentes.get(fuente)
-                if tabla_dest:
-                    for _ in range(cantidad):
-                        borrar_fila_por_origen(tabla_dest, "Hoja 1", origen)
-            
-            log("✨ Limpieza terminada.")
-        else:
-            log("✨ No se hallaron duplicados.")
-
-    except Exception as e:
-        print(f"💥 ERROR: {e}")
-
-def procesar_duplicados_y_normalizar():
-    print("🚀 Iniciando proceso de limpieza estricta...")
-    
-    try:
-        df_principal = obtener_df_de_sheets("Entradas auto", "Eventos")
-        if df_principal.empty: return
-
-        # 1. NORMALIZACIÓN Y LOG DE FALTANTES (Hoja 2)
-        df_equiv = obtener_df_de_sheets("Equiv Lugares", "Hoja 1")
-        mapeo_lugares = {}
-        lugares_no_encontrados = set()
-
-        if not df_equiv.empty:
-            mapeo_lugares = {str(k).lower().strip(): str(v).strip() for k, v in zip(df_equiv.iloc[:, 0], df_equiv.iloc[:, 1])}
-        
-        def normalizar_lugar(l):
-            l_str = str(l).lower().strip()
-            if l_str in mapeo_lugares:
-                return mapeo_lugares[l_str]
-            if l_str != "" and l_str != "nan":
-                lugares_no_encontrados.add(l) # Registro para Hoja 2
-            return l_str
-
-        df_principal['Lugar_Norm'] = df_principal['Lugar'].apply(normalizar_lugar)
-        
-        # Subir faltantes a Hoja 2 de Equiv Lugares
-        if lugares_no_encontrados:
-            df_faltantes = pd.DataFrame(list(lugares_no_encontrados), columns=["Lugar no encontrado"])
-            subir_a_google_sheets(df_faltantes, "Equiv Lugares", "Hoja 2")
-
-        # 2. PROCESAMIENTO DE FECHAS
-        df_principal['Comienza_DT'] = pd.to_datetime(df_principal['Comienza'], errors='coerce').dt.date
-
-        duplicados_para_registro = []
-        indices_ya_agrupados = set()
-        prox_id_num = 1 # Deberías calcular el max id_dup de la hoja Duplicados
-
-        # 3. BUCLE DE DETECCIÓN (Lógica limpia)
         for i in range(len(df_principal)):
             if i in indices_ya_agrupados: continue
             
             fila_a = df_principal.iloc[i]
             if pd.isna(fila_a['Comienza_DT']): continue
 
-            # Buscamos coincidencias para ESTA fila i
-            grupo_actual = [i]
+            grupo_actual_indices = [i]
             for j in range(i + 1, len(df_principal)):
                 if j in indices_ya_agrupados: continue
-                
                 fila_b = df_principal.iloc[j]
                 
-                # CRITERIO TEÓRICO ESTRICTO:
                 mismo_lugar = (str(fila_a['Lugar_Norm']) == str(fila_b['Lugar_Norm'])) and fila_a['Lugar_Norm'] != ""
                 misma_fecha = (fila_a['Comienza_DT'] == fila_b['Comienza_DT'])
 
                 if mismo_lugar and misma_fecha:
-                    grupo_actual.append(j)
+                    grupo_actual_indices.append(j)
 
-            # Si encontramos más de una fila con mismo lugar y fecha
-            if len(grupo_actual) > 1:
+            if len(grupo_actual_indices) > 1:
+                # --- APLICACIÓN DE JERARQUÍA ---
+                # Extraemos las filas del grupo
+                filas_grupo = df_principal.iloc[grupo_actual_indices].copy()
+                
+                # Asignamos un valor numérico de prioridad (si no existe en el dict, prioridad baja = 99)
+                filas_grupo['prioridad'] = filas_grupo['Fuente'].map(lambda x: prioridad_fuentes.get(x, 99))
+                
+                # Ordenamos el grupo: la fuente con menor número (más arriba en el dict) queda primero
+                filas_grupo = filas_grupo.sort_values(by='prioridad', ascending=True)
+                
                 letras = "ABCDEFGHIJKL"
-                for idx, idx_pos in enumerate(grupo_actual):
-                    indices_ya_agrupados.add(idx_pos) # Marcamos para no volver a procesar
+                for idx, (original_idx, row) in enumerate(filas_grupo.iterrows()):
+                    indices_ya_agrupados.add(original_idx)
                     
-                    ev = df_principal.iloc[idx_pos].copy()
+                    ev = row.copy()
                     ev['id_dup'] = f"{prox_id_num}{letras[idx]}"
                     
-                    # Guardamos para la hoja Duplicados
-                    duplicados_para_registro.append(ev.drop(['Lugar_Norm', 'Comienza_DT']))
+                    # Guardamos registro para la hoja Duplicados (limpiando columnas temporales)
+                    duplicados_para_registro.append(ev.drop(['Lugar_Norm', 'Comienza_DT', 'prioridad'], errors='ignore'))
                     
-                    # BORRADO: Si no es el primero (A), se borra de la fuente
+                    # --- LÓGICA DE BORRADO ---
+                    # El idx 0 es el "Ganador" (la fuente más importante). No se borra.
+                    # Los idx > 0 son duplicados de menor jerarquía. Se borran de sus fuentes.
                     if idx > 0:
                         tabla_dest = dict_fuentes.get(ev['Fuente'])
                         if tabla_dest:
+                            print(f"📍 Jerarquía: Manteniendo {filas_grupo.iloc[0]['Fuente']} y borrando {ev['Fuente']}")
                             borrar_fila_por_origen(tabla_dest, "Hoja 1", ev['Origen'])
                 
                 prox_id_num += 1
 
-        # 4. FINALIZAR
+        # --- 4. FINALIZAR ---
         if duplicados_para_registro:
             df_final = pd.DataFrame(duplicados_para_registro)
             subir_a_google_sheets(df_final, "Duplicados", "Hoja 1")
-            print("✅ Duplicados procesados correctamente.")
+            print("✅ Proceso de jerarquía y duplicados finalizado.")
         else:
-            print("✨ No se encontraron duplicados bajo los criterios (Mismo Lugar + Misma Fecha).")
+            print("✨ No se hallaron duplicados para procesar.")
 
     except Exception as e:
-        print(f"💥 ERROR: {e}")
+        print(f"💥 ERROR en procesar_duplicados: {e}")
 
 # --- FUNCIONES DE BORRADO Y LECTURA ---
 def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
@@ -1862,6 +1763,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
