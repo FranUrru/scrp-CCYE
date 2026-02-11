@@ -519,8 +519,8 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
                 valores_a_subir = [data_final.columns.values.tolist()] + data_final.values.tolist()
                 sheet.update(valores_a_subir, value_input_option='USER_ENTERED')
                 
-                print(f"✅ Hoja '{nombre_tabla}' actualizada.")
-                print(f"📊 Se agregaron {conteo_reales} filas nuevas reales.")
+                log(f"✅ Hoja '{nombre_tabla}' actualizada.")
+                log(f"📊 Se agregaron {conteo_reales} filas nuevas.")
                 return True 
             else:
                 print(f"⚠️ DataFrame vacío para {nombre_tabla}")
@@ -667,7 +667,7 @@ def ejecutar_scraper_ticketek():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 log('TICKETEK')
-#ejecutar_scraper_ticketek()
+ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -945,7 +945,7 @@ def ejecutar_scraper_eden():
         return reporte
 log('')
 log('EDÉN')
-#ejecutar_scraper_eden()
+ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1183,7 +1183,7 @@ def ejecutar_scraper_eventbrite():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
     return reporte
 
-intentos_maximos = 0
+intentos_maximos = 3
 resultado_final = None
 log('')
 log('EVENTBRITE')
@@ -1575,6 +1575,8 @@ def ejecutar_scraper_turismo_cba():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 
+ejecutar_scraper_turismo_cba()
+
 
 
 #Importante el orden. Marca jerarquía. El primero se mantiene siempre a la hora de comparar duplicados y así...
@@ -1759,10 +1761,11 @@ procesar_duplicados_y_normalizar()
 
 
 
-destinatarios=['furrutia@cordobaacelera.com.ar']
-#destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
+#destinatarios=['furrutia@cordobaacelera.com.ar']
+destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
