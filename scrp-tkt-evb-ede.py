@@ -1320,7 +1320,7 @@ def ejecutar_scraper_ferias_y_congresos():
 
     try:
         driver = iniciar_driver() 
-        url_fuente = "https://www.feriasycongresos.com/calendario-de-eventos"
+        url_fuente = "https://www.feriasycongresos.com/calendario-de-eventos?busqueda=C%C3%B3rdoba"
         driver.get(url_fuente)
         
         # Espera dinámica (Vue.js)
@@ -1847,6 +1847,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
