@@ -1348,6 +1348,7 @@ def ejecutar_scraper_ferias_y_congresos():
                         motivo="El evento no se encuentra en córdoba capital",
                         linea="1367", fuente="Ferias y Congresos", href=url_fuente
                     )
+                    print(f'El evento {nombre} no se encuentra en córdoba capital')
                     continue
 
                 # 2. Procesamiento de Rango de Fechas (Requisito Punto 3)
@@ -1854,6 +1855,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
