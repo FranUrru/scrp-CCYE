@@ -1771,12 +1771,6 @@ def procesar_duplicados_y_normalizar():
         print(f"💥 ERROR: {e}")
 
 # --- FUNCIONES DE BORRADO Y LECTURA ---
-
-Entendido. Para implementar esta excepción de forma limpia, lo ideal es verificar el valor de origen_link justo al inicio de la lógica de borrado. Si coincide con la URL de Córdoba que mencionas, la función simplemente imprime un aviso y termina sin hacer cambios.
-
-Aquí tienes el código actualizado:
-
-Python
 def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
     import os, json, gspread
     import pandas as pd # Asegúrate de que pandas esté importado
@@ -1857,6 +1851,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
