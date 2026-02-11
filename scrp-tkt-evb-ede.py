@@ -477,10 +477,14 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
                 # Convertimos todo a datetime para poder ordenar, luego a string para Sheets
                 if col_fecha_carga:
                     combined_df[col_fecha_carga] = pd.to_datetime(combined_df[col_fecha_carga], errors='coerce')
-                
+
                 # --- 4. ELIMINAR DUPLICADOS (Mantenemos el registro más antiguo) ---
                 # Definimos el subset para drop_duplicates basándonos en lo que exista en el DF
-                criterio_unicidad = [id_col] if id_col else subset_duplicados
+                if id_col:
+                    criterio_unicidad = [id_col]
+                else:
+                    # Si no hay columna de ID, usamos las columnas de contenido que existan
+                    criterio_unicidad = [c for c in columnas_contenido if c in combined_df.columns]
                 
                 if criterio_unicidad:
                     # Ordenamos para que lo más nuevo (o lo que ya estaba) se mantenga según prefieras
@@ -1843,6 +1847,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
