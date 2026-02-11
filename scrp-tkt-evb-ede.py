@@ -459,12 +459,16 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
                 if id_col and id_col in existing_df.columns:
                     # Filtramos las que realmente no están en la hoja usando el link/ID
                     nuevas_filas_mask = ~df_entrada[id_col].astype(str).isin(existing_df[id_col].astype(str))
-                    conteo_reales = len(df_entrada[nuevas_filas_mask])
+                    df_nuevas_reales = df_entrada[nuevas_filas_mask].copy()  # ⭐ Solo las nuevas
+                    conteo_reales = len(df_nuevas_reales)
                 else:
+                    df_nuevas_reales = df_entrada.copy()
                     conteo_reales = len(df_entrada)
-
-                combined_df = pd.concat([existing_df, df_nuevas_reales], ignore_index=True)
+            
+                combined_df = pd.concat([existing_df, df_nuevas_reales], ignore_index=True)  # ✅ CORRECCIÓN
             else:
+                # ⭐ CASO HOJA VACÍA: Todas las filas son nuevas
+                df_nuevas_reales = df_entrada.copy()
                 combined_df = df_entrada
                 conteo_reales = len(df_entrada)
 
@@ -1839,6 +1843,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
