@@ -527,7 +527,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
             
     return False
     
-def _ticketek():
+def ejecutar_scraper_ticketek():
     """
     Ejecuta el scraper y devuelve un reporte del estado.
     """
@@ -1847,6 +1847,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
