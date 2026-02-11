@@ -428,6 +428,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
     intentos = 0
     while intentos < retries:
         try:
+            # --- CONEXIÓN ---
             info_claves = json.loads(secreto_json)
             creds = service_account.Credentials.from_service_account_info(
                 info_claves, 
@@ -441,63 +442,69 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
             
             # --- 1. PREPARACIÓN DE DATOS ENTRANTES ---
             df_entrada = df.copy()
-            conteo_reales = len(df_entrada)
+            conteo_reales = 0
             
-            # --- NUEVA EXCEPCIÓN: SALTOS DE FILTRADO ---
-            tablas_sin_filtro = ['Ferias y Congresos (Auto)', 'Rechazados', 'Duplicados']
-            es_excepcion = nombre_tabla in tablas_sin_filtro
+            # Identificadores de lógica
+            tablas_acumulativas = ['Rechazados', 'Duplicados']
+            es_acumulativa = nombre_tabla in tablas_acumulativas
+            es_ferias_auto = nombre_tabla == 'Ferias y Congresos (Auto)'
 
-            if es_excepcion:
-                # Si es una de estas tablas, simplemente concatenamos todo lo nuevo al final 
-                # (o manejamos la hoja como una lista acumulativa simple)
-                if len(existing_data) > 1:
-                    existing_df = pd.DataFrame(existing_data[1:], columns=existing_data[0])
-                    combined_df = pd.concat([existing_df, df_entrada], ignore_index=True)
-                else:
-                    combined_df = df_entrada
+            # --- 2. LÓGICA DE DETECCIÓN DE FILAS NUEVAS ---
+            if len(existing_data) > 1:
+                existing_df = pd.DataFrame(existing_data[1:], columns=existing_data[0])
                 
-                print(f"ℹ️ Modo excepción: Subiendo todos los datos a '{nombre_tabla}' sin validar duplicados.")
-            
-            else:
-                # --- LÓGICA ORIGINAL DE DETECCIÓN DE FILAS NUEVAS ---
-                columnas_id = ['Origen', 'href', 'Link', 'URL']
-                columnas_contenido = ['Eventos', 'Nombre', 'title', 'Lugar', 'Locación', 'lugar', 'Comienza', 'date']
+                if es_acumulativa:
+                    # Caso A: Pase libre total (No filtramos nada contra lo existente)
+                    df_nuevas_reales = df_entrada.copy()
+                    print(f"ℹ️ Modo Acumulativo: Agregando todas las filas a '{nombre_tabla}'.")
                 
-                id_col = next((c for c in columnas_id if c in df_entrada.columns), None)
-                col_fecha_carga = next((c for c in ['fecha de carga', 'Fecha Scrp'] if c in df_entrada.columns), None)
-
-                if len(existing_data) > 1:
-                    existing_df = pd.DataFrame(existing_data[1:], columns=existing_data[0])
-                    
-                    if id_col and id_col in existing_df.columns:
-                        nuevas_filas_mask = ~df_entrada[id_col].astype(str).isin(existing_df[id_col].astype(str))
-                        df_nuevas_reales = df_entrada[nuevas_filas_mask].copy()
-                        conteo_reales = len(df_nuevas_reales)
+                elif es_ferias_auto:
+                    # Caso B: Filtro especial por columna 'Eventos'
+                    col_busqueda = 'Eventos'
+                    if col_busqueda in existing_df.columns and col_busqueda in df_entrada.columns:
+                        mask_nuevos = ~df_entrada[col_busqueda].astype(str).isin(existing_df[col_busqueda].astype(str))
+                        df_nuevas_reales = df_entrada[mask_nuevos].copy()
                     else:
                         df_nuevas_reales = df_entrada.copy()
+                
+                else:
+                    # Caso C: Lógica estándar por ID (Origen, href, etc.)
+                    columnas_id = ['Origen', 'href', 'Link', 'URL']
+                    id_col = next((c for c in columnas_id if c in df_entrada.columns), None)
                     
-                    combined_df = pd.concat([existing_df, df_nuevas_reales], ignore_index=True)
-                else:
-                    combined_df = df_entrada
-
-                # --- ELIMINAR DUPLICADOS (Solo si NO es excepción) ---
-                if id_col:
-                    criterio_unicidad = [id_col]
-                else:
-                    criterio_unicidad = [c for c in columnas_contenido if c in combined_df.columns]
+                    if id_col and id_col in existing_df.columns:
+                        mask_nuevos = ~df_entrada[id_col].astype(str).isin(existing_df[id_col].astype(str))
+                        df_nuevas_reales = df_entrada[mask_nuevos].copy()
+                    else:
+                        df_nuevas_reales = df_entrada.copy()
                 
-                if criterio_unicidad:
-                    combined_df = combined_df.drop_duplicates(subset=criterio_unicidad, keep='first')
+                combined_df = pd.concat([existing_df, df_nuevas_reales], ignore_index=True)
+                conteo_reales = len(df_nuevas_reales)
+            else:
+                # Caso Hoja Vacía
+                combined_df = df_entrada
+                df_nuevas_reales = df_entrada.copy()
+                conteo_reales = len(df_entrada)
 
-            # --- LÓGICA COMÚN DE FORMATEO (Post-procesamiento) ---
+            # --- 3. LIMPIEZA Y ELIMINACIÓN DE DUPLICADOS INTERNOS ---
             if not combined_df.empty:
+                # Si no es acumulativa, nos aseguramos de que no haya duplicados en el set final
+                if not es_acumulativa:
+                    if es_ferias_auto:
+                        combined_df = combined_df.drop_duplicates(subset=['Eventos'], keep='first')
+                    else:
+                        columnas_id = ['Origen', 'href', 'Link', 'URL']
+                        id_col_final = next((c for c in columnas_id if c in combined_df.columns), None)
+                        if id_col_final:
+                            combined_df = combined_df.drop_duplicates(subset=[id_col_final], keep='first')
+
+                # --- 4. ORDENAMIENTO (Lo más nuevo arriba) ---
                 col_fecha_carga = next((c for c in ['fecha de carga', 'Fecha Scrp'] if c in combined_df.columns), None)
-                
                 if col_fecha_carga:
                     combined_df[col_fecha_carga] = pd.to_datetime(combined_df[col_fecha_carga], errors='coerce')
-                    # Ordenar: Lo más nuevo arriba
                     combined_df = combined_df.sort_values(by=col_fecha_carga, ascending=False)
 
+                # --- 5. FORMATEO ANTI-ERROR (JSON Serializing) ---
                 def serializar_datos(val):
                     if pd.isna(val) or val is pd.NaT: return ""
                     if isinstance(val, (datetime, pd.Timestamp)):
@@ -507,12 +514,13 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
                 combined_df = combined_df.replace([np.inf, -np.inf], np.nan).fillna("")
                 data_final = combined_df.map(serializar_datos)
                 
-                # Subida final
+                # --- 6. SUBIDA FINAL ---
                 sheet.clear()
                 valores_a_subir = [data_final.columns.values.tolist()] + data_final.values.tolist()
                 sheet.update(valores_a_subir, value_input_option='USER_ENTERED')
                 
-                print(f"✅ Hoja '{nombre_tabla}' actualizada. Filas procesadas: {conteo_reales}")
+                print(f"✅ Hoja '{nombre_tabla}' actualizada.")
+                print(f"📊 Se agregaron {conteo_reales} filas nuevas reales.")
                 return True 
             else:
                 print(f"⚠️ DataFrame vacío para {nombre_tabla}")
@@ -1854,6 +1862,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
