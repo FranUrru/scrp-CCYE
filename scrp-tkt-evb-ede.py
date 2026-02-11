@@ -380,7 +380,7 @@ import gspread
 from datetime import datetime
 from urllib.parse import quote
 from bs4 import BeautifulSoup
-from oauth2client.service_account import ServiceAccountCredentials
+from oauth2client.service_account import ServiceAccountCrtials
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
@@ -429,7 +429,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
     while intentos < retries:
         try:
             info_claves = json.loads(secreto_json)
-            creds = service_account.Credentials.from_service_account_info(
+            creds = service_account.Crtials.from_service_account_info(
                 info_claves, 
                 scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
             )
@@ -447,7 +447,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
             columnas_id = ['Origen', 'href', 'Link', 'URL']
             columnas_contenido = ['Eventos', 'Nombre', 'title', 'Lugar', 'Locación', 'lugar', 'Comienza', 'date']
             
-            # Buscamos qué columna de ID tiene este DF (ej: 'Origen' en Eden, 'href' en Ticketek)
+            # Buscamos qué columna de ID tiene este DF (ej: 'Origen' en , 'href' en Ticketek)
             id_col = next((c for c in columnas_id if c in df_entrada.columns), None)
             # Buscamos la columna de fecha de carga
             col_fecha_carga = next((c for c in ['fecha de carga', 'Fecha Scrp'] if c in df_entrada.columns), None)
@@ -652,7 +652,7 @@ def ejecutar_scraper_ticketek():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 log('TICKETEK')
-ejecutar_scraper_ticketek()
+#ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -847,7 +847,8 @@ def ejecutar_scraper_eden():
         for _, row in sin_datos_basicos.iterrows():
             registrar_rechazo(row['Nombre'], "Incompleto", row['Fecha'], "Falta Locación o Nombre en el Grid", "851", "Eden", row['href'])
 
-        data_df = data_df.dropna(subset=['Locación']).drop_duplicates().reset_index(drop=True)
+        data_df = data_df.dropna(subset=['Locación', 'href']).drop_duplicates(subset=['href']).reset_index(drop=True)
+        log(f"📊 Eden: {len(data_df)} eventos únicos detectados tras eliminar duplicados por link")
 
         # 3. Recorrido de detalles
         for index, row in data_df.iterrows():
@@ -929,7 +930,7 @@ def ejecutar_scraper_eden():
         return reporte
 log('')
 log('EDÉN')
-#ejecutar_scraper_eden()
+ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1167,7 +1168,7 @@ def ejecutar_scraper_eventbrite():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
     return reporte
 
-intentos_maximos = 3
+intentos_maximos = 0
 resultado_final = None
 log('')
 log('EVENTBRITE')
@@ -1406,7 +1407,7 @@ def ejecutar_scraper_ferias_y_congresos():
 
 # Ejecución
 print("Iniciando Ferias y Congresos...")
-ejecutar_scraper_ferias_y_congresos()
+#ejecutar_scraper_ferias_y_congresos()
 
 
 log('')
@@ -1555,7 +1556,7 @@ def ejecutar_scraper_turismo_cba():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 
-ejecutar_scraper_turismo_cba()
+#ejecutar_scraper_turismo_cba()
 dict_fuentes = {
     'Eden Entradas': 'Eden historico (Auto)',
     'Ticketek': 'Ticketek historico (Auto)',
@@ -1838,6 +1839,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
