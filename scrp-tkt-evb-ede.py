@@ -1591,9 +1591,65 @@ dict_fuentes = {
 def procesar_duplicados_y_normalizar():
     print("🚀 Iniciando proceso de limpieza con Jerarquía de Fuentes...")
     
+    # --- CIUDADES DE CÓRDOBA A DETECTAR ---
+    ciudades_cordoba = [
+        r'r[ií]o\s+cuarto',
+        r'villa\s+dolores',
+        r'san\s+francisco',
+        r'villa\s+mar[ií]a'
+    ]
+    
     try:
         df_principal = obtener_df_de_sheets("Entradas auto", "Eventos")
         if df_principal.empty: return
+
+        # --- DataFrame para rechazados ---
+        df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link'])
+
+        def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href):
+            nonlocal df_rechazados
+            nuevo = pd.DataFrame([{
+                'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
+                'Motivo': motivo, 'Linea': str(linea), 'Fuente': fuente, 'Link': href
+            }])
+            df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
+
+        # --- VERIFICACIÓN DE CIUDADES ANTES DE PROCESAMIENTO ---
+        indices_a_eliminar = []
+        
+        for idx, row in df_principal.iterrows():
+            nombre_evento = str(row.get('Eventos', ''))
+            locacion = str(row.get('Lugar', ''))
+            texto_combinado = f"{nombre_evento} {locacion}".lower()
+            
+            # Verificar si menciona alguna ciudad de Córdoba
+            ciudad_detectada = None
+            for patron in ciudades_cordoba:
+                if re.search(patron, texto_combinado, re.IGNORECASE):
+                    ciudad_detectada = re.search(patron, texto_combinado, re.IGNORECASE).group(0)
+                    break
+            
+            if ciudad_detectada:
+                registrar_rechazo(
+                    nombre=nombre_evento,
+                    loc=locacion,
+                    fecha=row.get('Comienza', 'N/A'),
+                    motivo=f"Ciudad distinta de capital detectada: {ciudad_detectada}",
+                    linea="1625",
+                    fuente=row.get('Fuente', 'Desconocida'),
+                    href=row.get('Origen', '')
+                )
+                
+                indices_a_eliminar.append(idx)
+                
+                # Borrar de la tabla origen
+                tabla_origen = dict_fuentes.get(row.get('Fuente'))
+                if tabla_origen:
+                    print(f"🏙️ Ciudad detectada ({ciudad_detectada}): Eliminando '{nombre_evento}' de {tabla_origen}")
+                    borrar_fila_por_origen(tabla_origen, "Hoja 1", row.get('Origen'))
+
+        # Eliminar las filas detectadas del DataFrame principal
+        df_principal = df_principal.drop(indices_a_eliminar).reset_index(drop=True)
 
         # --- 1. NORMALIZACIÓN DE LUGARES ---
         df_equiv = obtener_df_de_sheets("Equiv Lugares", "Hoja 1")
@@ -1621,7 +1677,6 @@ def procesar_duplicados_y_normalizar():
             except: prox_id_num = 1
 
         # --- 3. BUCLE DE DETECCIÓN ---
-        # Creamos una lista de prioridades basada en el orden de dict_fuentes
         prioridad_fuentes = {fuente: i for i, fuente in enumerate(dict_fuentes.keys())}
 
         for i in range(len(df_principal)):
@@ -1642,14 +1697,8 @@ def procesar_duplicados_y_normalizar():
                     grupo_actual_indices.append(j)
 
             if len(grupo_actual_indices) > 1:
-                # --- APLICACIÓN DE JERARQUÍA ---
-                # Extraemos las filas del grupo
                 filas_grupo = df_principal.iloc[grupo_actual_indices].copy()
-                
-                # Asignamos un valor numérico de prioridad (si no existe en el dict, prioridad baja = 99)
                 filas_grupo['prioridad'] = filas_grupo['Fuente'].map(lambda x: prioridad_fuentes.get(x, 99))
-                
-                # Ordenamos el grupo: la fuente con menor número (más arriba en el dict) queda primero
                 filas_grupo = filas_grupo.sort_values(by='prioridad', ascending=True)
                 
                 letras = "ABCDEFGHIJKL"
@@ -1659,12 +1708,8 @@ def procesar_duplicados_y_normalizar():
                     ev = row.copy()
                     ev['id_dup'] = f"{prox_id_num}{letras[idx]}"
                     
-                    # Guardamos registro para la hoja Duplicados (limpiando columnas temporales)
                     duplicados_para_registro.append(ev.drop(['Lugar_Norm', 'Comienza_DT', 'prioridad'], errors='ignore'))
                     
-                    # --- LÓGICA DE BORRADO ---
-                    # El idx 0 es el "Ganador" (la fuente más importante). No se borra.
-                    # Los idx > 0 son duplicados de menor jerarquía. Se borran de sus fuentes.
                     if idx > 0:
                         tabla_dest = dict_fuentes.get(ev['Fuente'])
                         if tabla_dest:
@@ -1681,9 +1726,13 @@ def procesar_duplicados_y_normalizar():
         else:
             print("✨ No se hallaron duplicados para procesar.")
 
+        # --- SUBIR RECHAZADOS ---
+        if not df_rechazados.empty:
+            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
+            print(f"✅ Se rechazaron {len(df_rechazados)} eventos por ciudades distintas a capital.")
+
     except Exception as e:
         print(f"💥 ERROR en procesar_duplicados: {e}")
-
 # --- FUNCIONES DE BORRADO Y LECTURA ---
 def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
     import os, json, gspread
@@ -1765,6 +1814,7 @@ procesar_duplicados_y_normalizar()
 destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
