@@ -1028,6 +1028,12 @@ def ejecutar_scraper_eden():
                     continue
                 
                 print(f"✅ PASÓ FILTRO: Córdoba detectada")
+                # Usamos el 'raw_text' que ya limpiamos en el debug
+                data_df.loc[index, 'Fecha'] = raw_text 
+                
+                # Limpiamos el Lugar para que no diga "Próximas fechas"
+                lugar_limpio = raw_text.split('|')[-1].split('Cordoba')[0].strip() if '|' in raw_text else row['Locación']
+                data_df.loc[index, 'Locación'] = lugar_limpio
 
                 # Precios...
                 try:
@@ -2012,6 +2018,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
