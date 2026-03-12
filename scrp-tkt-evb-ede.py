@@ -1017,7 +1017,7 @@ def ejecutar_scraper_eden():
                 'Lugar': df_norm['Locación'],
                 'Comienza': df_norm['Fecha'],
                 'Finaliza': df_norm['Fecha'],
-                'Tipo de evento': 'Espectáculo',
+                'Tipo de evento': None,
                 'Detalle': None,
                 'Alcance': None,
                 'Costo de entrada': df_norm['precio_promedio'],
@@ -1271,7 +1271,7 @@ def ejecutar_scraper_eventbrite():
                     'Nombre': df_final_data['Nombre'],
                     'Locación': df_final_data['Locación'],
                     'Fecha Convertida': df_final_data['Fecha Convertida'].astype(str),
-                    'termina': "", 'tipo de evento': 'M.I.C.E', 'detalle': "", 'alcance': "",
+                    'termina': "", 'tipo de evento': None, 'detalle': "", 'alcance': "",
                     'Precio': 0.0, 'fuente': 'eventbrite', 'Origen': df_final_data['Origen'],
                     'Fecha Scrp': datetime.today().strftime('%Y-%m-%d')
                 })
@@ -1493,7 +1493,7 @@ def ejecutar_scraper_ferias_y_congresos():
                 'Lugar': recinto_raw.replace("Recinto:", "").strip(),
                 'Comienza': f_ini,          # Usamos nombres estándar para evitar problemas de duplicados
                 'Finaliza': f_fin,
-                'Tipo de evento': 'M.I.C.E',
+                'Tipo de evento': None,
                 'Detalle': '',
                 'Alcance': '',
                 'Costo de entrada': '',
@@ -1950,6 +1950,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
