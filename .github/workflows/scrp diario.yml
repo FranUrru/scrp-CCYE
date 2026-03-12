@@ -2,8 +2,8 @@ name: Scraper Diario de Eventos
 
 on:
   schedule:
-    - cron: '0 10 * * *' # Esto corre todos los días a las 12:00 UTC (9:00 AM Argentina)
-  workflow_dispatch:      # Esto te permite darle al botón "Run" manualmente
+    - cron: '0 10 * * *'
+  workflow_dispatch:
 
 jobs:
   run-scraper:
@@ -11,17 +11,27 @@ jobs:
     steps:
       - name: Descargar mi código
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Instalar Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.10'
+          cache: 'pip' # Acelera las ejecuciones futuras
 
       - name: Instalar librerías
         run: pip install -r requirements.txt
 
+      # ESTE PASO ES CLAVE PARA EL DEBUG
+      - name: Verificar Integridad del Modelo
+        run: |
+          echo "--- Información del archivo ---"
+          ls -lh modelo_clasificador_eventos.pkl || echo "Archivo no encontrado"
+          file modelo_clasificador_eventos.pkl || echo "No se pudo determinar el tipo"
+
       - name: Ejecutar el Scraper
-        run: python scrp-tkt-evb-ede.py # <-- Cambia esto por el nombre real de tu archivo
+        run: python scrp-tkt-evb-ede.py
         env:
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
