@@ -14,10 +14,6 @@ log_buffer = io.StringIO()
 
 _modelo_clasificador = None
 def cargar_modelo_clasificador():
-    """
-    Carga el modelo .pkl una sola vez y lo cachea en memoria.
-    Busca el archivo en el directorio del script o en la raíz del proyecto.
-    """
     global _modelo_clasificador
     if _modelo_clasificador is not None:
         return _modelo_clasificador
@@ -26,17 +22,26 @@ def cargar_modelo_clasificador():
         "modelo_clasificador_eventos.pkl",
         "__modelo_clasificador_eventos.pkl",
         os.path.join(os.path.dirname(__file__), "modelo_clasificador_eventos.pkl"),
-        os.path.join(os.path.dirname(__file__), "__modelo_clasificador_eventos.pkl"),
     ]
 
     for ruta in rutas_posibles:
         if os.path.exists(ruta):
-            with open(ruta, "rb") as f:
-                _modelo_clasificador = pickle.load(f)
-            log(f"✅ Modelo clasificador cargado desde: {ruta}")
-            return _modelo_clasificador
+            # Verificación extra: ¿El archivo tiene contenido?
+            if os.path.getsize(ruta) < 100: 
+                log(f"❌ El archivo en {ruta} es demasiado pequeño para ser un modelo válido.")
+                continue
+                
+            try:
+                with open(ruta, "rb") as f:
+                    _modelo_clasificador = pickle.load(f)
+                log(f"✅ Modelo clasificador cargado desde: {ruta}")
+                return _modelo_clasificador
+            except Exception as e:
+                log(f"❌ Error crítico al leer el archivo pkl en {ruta}: {e}")
+                # Si un archivo está mal, probamos la siguiente ruta en lugar de romper todo
+                continue
 
-    log("⚠️ ADVERTENCIA: No se encontró el archivo del modelo clasificador. Se omitirá la clasificación automática.")
+    log("⚠️ ADVERTENCIA: No se pudo cargar ningún modelo válido. Se omitirá la clasificación.")
     return None
 
 def aplicar_clasificador(df, col_nombre, col_lugar, col_tipo_evento, col_confianza="confianza_clasificacion"):
@@ -1043,7 +1048,7 @@ def ejecutar_scraper_eden():
         return reporte
 log('')
 log('EDÉN')
-ejecutar_scraper_eden()
+#ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1290,7 +1295,7 @@ def ejecutar_scraper_eventbrite():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
     return reporte
 
-intentos_maximos = 3
+intentos_maximos = 0
 resultado_final = None
 log('')
 log('EVENTBRITE')
@@ -1542,7 +1547,7 @@ def ejecutar_scraper_ferias_y_congresos():
 
 # Ejecución
 print("Iniciando Ferias y Congresos...")
-ejecutar_scraper_ferias_y_congresos()
+#ejecutar_scraper_ferias_y_congresos()
 
 
 log('')
@@ -1700,7 +1705,7 @@ def ejecutar_scraper_turismo_cba():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 
-ejecutar_scraper_turismo_cba()
+#ejecutar_scraper_turismo_cba()
 
 
 
@@ -1935,10 +1940,11 @@ procesar_duplicados_y_normalizar()
 
 
 
-#destinatarios=['furrutia@cordobaacelera.com.ar']
-destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
+destinatarios=['furrutia@cordobaacelera.com.ar']
+#destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
