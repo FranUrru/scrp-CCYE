@@ -10,7 +10,88 @@ def log(mensaje):
 # Buffer para acumular los prints
 log_buffer = io.StringIO()
 
+_modelo_clasificador = None
+def cargar_modelo_clasificador():
+    """
+    Carga el modelo .pkl una sola vez y lo cachea en memoria.
+    Busca el archivo en el directorio del script o en la raíz del proyecto.
+    """
+    global _modelo_clasificador
+    if _modelo_clasificador is not None:
+        return _modelo_clasificador
 
+    rutas_posibles = [
+        "modelo_clasificador_eventos.pkl",
+        "__modelo_clasificador_eventos.pkl",
+        os.path.join(os.path.dirname(__file__), "modelo_clasificador_eventos.pkl"),
+        os.path.join(os.path.dirname(__file__), "__modelo_clasificador_eventos.pkl"),
+    ]
+
+    for ruta in rutas_posibles:
+        if os.path.exists(ruta):
+            with open(ruta, "rb") as f:
+                _modelo_clasificador = pickle.load(f)
+            log(f"✅ Modelo clasificador cargado desde: {ruta}")
+            return _modelo_clasificador
+
+    log("⚠️ ADVERTENCIA: No se encontró el archivo del modelo clasificador. Se omitirá la clasificación automática.")
+    return None
+
+def aplicar_clasificador(df, col_nombre, col_lugar, col_tipo_evento, col_confianza="confianza_clasificacion"):
+    """
+    Aplica el modelo logístico a las filas donde 'col_tipo_evento' está vacía.
+
+    Args:
+        df: DataFrame a procesar.
+        col_nombre: Nombre de la columna con el nombre del evento (columna A).
+        col_lugar: Nombre de la columna con el lugar (columna B).
+        col_tipo_evento: Nombre de la columna de tipo de evento (columna E).
+        col_confianza: Nombre de la columna donde se registrará el nivel de confianza.
+
+    Returns:
+        DataFrame con predicciones y confianzas completadas, y un dict de métricas.
+    """
+    modelo = cargar_modelo_clasificador()
+    metricas = {"predicciones": 0, "confianza_promedio": None, "fuente": ""}
+
+    if modelo is None or df.empty:
+        return df, metricas
+
+    # Aseguramos que la columna de confianza exista
+    if col_confianza not in df.columns:
+        df[col_confianza] = None
+
+    # Identificamos filas a predecir: tipo de evento vacío/nulo
+    mask_vacio = df[col_tipo_evento].isna() | (df[col_tipo_evento].astype(str).str.strip() == "")
+
+    if not mask_vacio.any():
+        return df, metricas
+
+    df_a_predecir = df[mask_vacio].copy()
+
+    # Construimos el vector de features igual que en el entrenamiento
+    X = (
+        df_a_predecir[col_nombre].astype(str).fillna("")
+        + " "
+        + df_a_predecir[col_lugar].astype(str).fillna("")
+    )
+
+    try:
+        predicciones = modelo.predict(X)
+        # predict_proba devuelve la prob de cada clase; tomamos el máximo como confianza
+        probs = modelo.predict_proba(X)
+        confianzas = np.max(probs, axis=1).round(4)
+
+        df.loc[mask_vacio, col_tipo_evento] = predicciones
+        df.loc[mask_vacio, col_confianza] = confianzas
+
+        metricas["predicciones"] = int(mask_vacio.sum())
+        metricas["confianza_promedio"] = round(float(np.mean(confianzas)), 4)
+
+    except Exception as e:
+        log(f"⚠️ Error al ejecutar el clasificador: {e}")
+
+    return df, metricas
 
 def click_load_more_until_disappears(driver):
     """
@@ -1856,6 +1937,7 @@ procesar_duplicados_y_normalizar()
 destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
