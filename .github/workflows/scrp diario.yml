@@ -5,30 +5,26 @@ on:
     - cron: '0 10 * * *'
   workflow_dispatch:
 
+env:
+  # Esto elimina el warning de Node.js 20
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true 
+
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
     steps:
       - name: Descargar mi código
-        uses: actions/checkout@v4
-        with:
-          lfs: true
+        uses: actions/checkout@v4 # Ya usas v4, está bien.
 
       - name: Instalar Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-          cache: 'pip' # Acelera las ejecuciones futuras
+          python-version: '3.12' # Subimos a 3.12 para eliminar el warning de Google
 
       - name: Instalar librerías
-        run: pip install -r requirements.txt
-
-      # ESTE PASO ES CLAVE PARA EL DEBUG
-      - name: Verificar Integridad del Modelo
         run: |
-          echo "--- Información del archivo ---"
-          ls -lh modelo_clasificador_eventos.pkl || echo "Archivo no encontrado"
-          file modelo_clasificador_eventos.pkl || echo "No se pudo determinar el tipo"
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Ejecutar el Scraper
         run: python scrp-tkt-evb-ede.py
