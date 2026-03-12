@@ -972,15 +972,35 @@ def ejecutar_scraper_eden():
                 time.sleep(3)
                 soup_det = BeautifulSoup(driver.page_source, 'html.parser')
                 
+                # --- NUEVOS PRINTS DE DIAGNÓSTICO ---
                 cols = soup_det.find_all('div', class_='col-xs-7')
-                ciudad_texto = ', '.join([e.text.strip() for e in cols]) if cols else ""
-                print(f"DEBUG: Evento: {row['Nombre']} | Ciudad: {ciudad_texto}") # <--- AÑADE ESTO
-                data_df.loc[index, 'filtro_ciudad'] = ciudad_texto
+                
+                # Edén suele poner la info en el primer col-xs-7 después del título
+                raw_text = " | ".join([e.text.strip() for e in cols])
+                print(f"\n🔍 EVENTO: {row['Nombre']}")
+                print(f"📍 RAW COLS: {raw_text[:200]}...") # Ver que estamos trayendo
 
-                # --- AUDITORÍA: Filtro de Ciudad (Córdoba) ---
-                if not any(x in ciudad_texto for x in ['Córdoba', 'Cordoba']):
-                    registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], f"Evento fuera de Córdoba: {ciudad_texto}", "862", "Eden", full_href)
+                # Intentamos extraer el lugar específicamente
+                # En Edén el lugar suele estar después de la coma en la línea de la fecha
+                lugar_especifico = row['Locación'] 
+                if cols:
+                    # Buscamos si en los divs hay algo que parezca una dirección (tiene números)
+                    for c in cols:
+                        t = c.text.strip()
+                        if any(char.isdigit() for char in t) and len(t) > 5:
+                            lugar_especifico = t
+                            break
+                
+                print(f"🏠 Lugar Detectado: {lugar_especifico}")
+                data_df.loc[index, 'filtro_ciudad'] = raw_text
+                data_df.loc[index, 'Locación_Detalle'] = lugar_especifico
+
+                # --- FILTRO DE CIUDAD ---
+                if not any(x in raw_text for x in ['Córdoba', 'Cordoba', 'Cba', 'CBA']):
+                    print(f"❌ RECHAZADO: No es Córdoba")
                     continue
+                
+                print(f"✅ PASÓ FILTRO: Córdoba detectada")
 
                 # Precios...
                 try:
@@ -992,6 +1012,7 @@ def ejecutar_scraper_eden():
                     data_df.loc[index, 'precio_promedio'] = None
 
             except Exception as e:
+                print(f"❗ Error procesando {row['Nombre']}: {str(e)}")
                 registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], f"Error navegando detalle: {str(e)}", "871", "Eden", full_href)
                 continue
 
@@ -1951,6 +1972,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
