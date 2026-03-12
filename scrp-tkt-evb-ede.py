@@ -974,6 +974,7 @@ def ejecutar_scraper_eden():
                 
                 cols = soup_det.find_all('div', class_='col-xs-7')
                 ciudad_texto = ', '.join([e.text.strip() for e in cols]) if cols else ""
+                print(f"DEBUG: Evento: {row['Nombre']} | Ciudad: {ciudad_texto}") # <--- AÑADE ESTO
                 data_df.loc[index, 'filtro_ciudad'] = ciudad_texto
 
                 # --- AUDITORÍA: Filtro de Ciudad (Córdoba) ---
@@ -1950,6 +1951,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
