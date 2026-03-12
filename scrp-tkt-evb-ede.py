@@ -804,23 +804,57 @@ def extraer_promedio_precios(soup):
     return prom_f2 if prom_f2 is not None else prom_f1
 
 def normalizar_fecha_complejo(fecha_str):
-    """Normaliza una cadena de fecha y hora con múltiples formatos."""
+    """Normaliza una cadena de fecha y hora con múltiples formatos, incluyendo el estándar de Edén."""
+    if not fecha_str: return []
     fechas_normalizadas = []
     año_actual = pd.Timestamp.now().year
-    dias_semana_esp = {'Lunes': 'Monday', 'Martes': 'Tuesday', 'Miércoles': 'Wednesday',
-                       'Miercoles': 'Wednesday', 'Jueves': 'Thursday', 'Viernes': 'Friday',
-                       'Sábado': 'Saturday', 'Sabado': 'Saturday', 'Domingo': 'Sunday'}
-    meses_esp = {'Enero': 'January', 'Febrero': 'February', 'Marzo': 'March',
-                 'Abril': 'April', 'Mayo': 'May', 'Junio': 'June', 'Julio': 'July',
-                 'Agosto': 'August', 'Septiembre': 'September', 'Setiembre': 'September',
-                 'Octubre': 'October', 'Noviembre': 'November', 'Diciembre': 'December'}
+    
+    # 1. Limpieza y diccionarios (Añadido 'maio/junho' y abreviaturas por seguridad)
+    fecha_str = re.sub(r'<.*?>', '', str(fecha_str)) # Elimina tags como <screens.event...>
+    
+    dias_semana_esp = {
+        'Lunes': 'Monday', 'Martes': 'Tuesday', 'Miércoles': 'Wednesday',
+        'Miercoles': 'Wednesday', 'Jueves': 'Thursday', 'Viernes': 'Friday',
+        'Sábado': 'Saturday', 'Sabado': 'Saturday', 'Domingo': 'Sunday'
+    }
+    meses_esp = {
+        'Enero': 'January', 'Febrero': 'February', 'Marzo': 'March',
+        'Abril': 'April', 'Mayo': 'May', 'Maio': 'May', 'Junio': 'June', 'Junho': 'June',
+        'Julio': 'July', 'Agosto': 'August', 'Septiembre': 'September', 'Setiembre': 'September',
+        'Octubre': 'October', 'Noviembre': 'November', 'Diciembre': 'December',
+        'Ene': 'January', 'Feb': 'February', 'Mar': 'March', 'Abr': 'April',
+        'May': 'May', 'Jun': 'June', 'Jul': 'July', 'Ago': 'August',
+        'Sep': 'September', 'Oct': 'October', 'Nov': 'November', 'Dic': 'December'
+    }
 
-    # Reemplazar nombres de días y meses al inglés
+    # Reemplazar nombres de días y meses al inglés (Case insensitive para mayor seguridad)
     for esp, eng in dias_semana_esp.items():
-        fecha_str = re.sub(r'\b' + esp + r'\b', eng, fecha_str)
+        fecha_str = re.sub(r'\b' + esp + r'\b', eng, fecha_str, flags=re.IGNORECASE)
     for esp, eng in meses_esp.items():
-        fecha_str = re.sub(r'\b' + esp + r'\b', eng, fecha_str)
+        fecha_str = re.sub(r'\b' + esp + r'\b', eng, fecha_str, flags=re.IGNORECASE)
 
+    # --- NUEVO CASO EDÉN: Formato multilínea o con "a las" y año explícito ---
+    # Esto soluciona lo visto en el debug: "22 de abril de 2026 a las 21:00"
+    lineas = fecha_str.split('\n')
+    for linea in lineas:
+        linea = linea.strip()
+        if not linea or 'Próximas' in linea: continue
+
+        # Patrón: "22 de April de 2026 a las 21:00"
+        match_eden = re.search(r'(\d+)\s+de\s+(\w+)\s+de\s+(\d{4})\s+a\s+las\s+(\d+[:.]\d+)', linea, re.IGNORECASE)
+        if match_eden:
+            dia, mes, año, hora = match_eden.groups()
+            hora = hora.replace('.', ':')
+            try:
+                fechas_normalizadas.append(pd.to_datetime(f'{dia} {mes} {año} {hora}', format='%d %B %Y %H:%M'))
+                continue 
+            except: pass
+
+    # Si ya capturamos fechas por el formato Edén, las devolvemos para no duplicar procesos
+    if fechas_normalizadas: return fechas_normalizadas
+
+    # --- TUS REDUNDANCIAS ORIGINALES ---
+    
     # Caso de rangos de fechas (ej: Viernes 23 y Sábado 24 de Mayo 16hs)
     match_rango = re.search(r'(\w+) (\d+) y (\w+) (\d+) de (\w+) (\d+)(?:hs|)', fecha_str)
     if match_rango:
@@ -828,65 +862,58 @@ def normalizar_fecha_complejo(fecha_str):
         try:
             fecha1_dt = pd.to_datetime(f'{dia1_num} {mes} {año_actual} {hora[:-2]}:00', format='%d %B %Y %H:%M')
             fecha2_dt = pd.to_datetime(f'{dia2_num} {mes} {año_actual} {hora[:-2]}:00', format='%d %B %Y %H:%M')
-            fechas_normalizadas.append(fecha1_dt)
-            fechas_normalizadas.append(fecha2_dt)
+            fechas_normalizadas.extend([fecha1_dt, fecha2_dt])
             return fechas_normalizadas
-        except ValueError:
-            pass
+        except: pass
 
-    # Caso de rangos de fechas con tres días (ej: Viernes 11, Sábado 12 y Domingo 13 de Julio)
+    # Caso de rangos de fechas con tres días
     match_rango_tres = re.search(r'(\w+) (\d+), (\w+) (\d+) y (\w+) (\d+) de (\w+)', fecha_str)
     if match_rango_tres:
-        dia1_sem, dia1_num, dia2_sem, dia2_num, dia3_sem, dia3_num, mes = match_rango_tres.groups()
+        _, d1, _, d2, _, d3, mes = match_rango_tres.groups()
         try:
-            fecha1_dt = pd.to_datetime(f'{dia1_num} {mes} {año_actual}', format='%d %B %Y')
-            fecha2_dt = pd.to_datetime(f'{dia2_num} {mes} {año_actual}', format='%d %B %Y')
-            fecha3_dt = pd.to_datetime(f'{dia3_num} {mes} {año_actual}', format='%d %B %Y')
-            fechas_normalizadas.append(fecha1_dt)
-            fechas_normalizadas.append(fecha2_dt)
-            fechas_normalizadas.append(fecha3_dt)
+            fechas_normalizadas.extend([
+                pd.to_datetime(f'{d1} {mes} {año_actual}', format='%d %B %Y'),
+                pd.to_datetime(f'{d2} {mes} {año_actual}', format='%d %B %Y'),
+                pd.to_datetime(f'{d3} {mes} {año_actual}', format='%d %B %Y')
+            ])
             return fechas_normalizadas
-        except ValueError:
-            pass
+        except: pass
 
-    # Caso de fecha y hora simple (ej: Miércoles 24 de Septiembre 21hs)
-    match_simple = re.search(r'(?:\w+ )?(\d+) de (\w+) (\d+(?:\.\d+)?)hs', fecha_str)
-    if match_simple:
-        dia, mes, hora_str = match_simple.groups()
-        hora_parts = hora_str.split('.')
-        hora = int(hora_parts[0])
-        minuto = int(hora_parts[1]) * 60 // 100 if len(hora_parts) > 1 else 0
+    # Caso de fecha y hora simple (tu lógica original de hs y . )
+    match_simple_hs = re.search(r'(?:\w+ )?(\d+) de (\w+) (\d+(?:\.\d+)?)hs', fecha_str)
+    if match_simple_hs:
+        dia, mes, hora_str = match_simple_hs.groups()
+        parts = hora_str.split('.')
+        h = int(parts[0])
+        m = int(parts[1]) * 60 // 100 if len(parts) > 1 else 0
         try:
-            fecha_dt = pd.to_datetime(f'{dia} {mes} {año_actual} {hora}:{minuto}:00', format='%d %B %Y %H:%M:%S')
-            fechas_normalizadas.append(fecha_dt)
+            fechas_normalizadas.append(pd.to_datetime(f'{dia} {mes} {año_actual} {h}:{m}:00', format='%d %B %Y %H:%M:%S'))
             return fechas_normalizadas
-        except ValueError:
-            pass
+        except: pass
+
+    # Redundancia para "22 de April 21hs" o "22 de April 21:00"
     elif match_simple := re.search(r'(?:\w+ )?(\d+) de (\w+) (\d+)hs', fecha_str):
         dia, mes, hora = match_simple.groups()
         try:
-            fecha_dt = pd.to_datetime(f'{dia} {mes} {año_actual} {hora}:00:00', format='%d %B %Y %H:%M:%S')
-            fechas_normalizadas.append(fecha_dt)
+            fechas_normalizadas.append(pd.to_datetime(f'{dia} {mes} {año_actual} {hora}:00:00', format='%d %B %Y %H:%M:%S'))
             return fechas_normalizadas
-        except ValueError:
-            pass
+        except: pass
+
     elif match_simple := re.search(r'(?:\w+ )?(\d+) de (\w+) (\d+:\d+)(?:hs|)', fecha_str):
         dia, mes, hora = match_simple.groups()
         try:
-            fecha_dt = pd.to_datetime(f'{dia} {mes} {año_actual} {hora}', format='%d %B %Y %H:%M')
-            fechas_normalizadas.append(fecha_dt)
+            fechas_normalizadas.append(pd.to_datetime(f'{dia} {mes} {año_actual} {hora}', format='%d %B %Y %H:%M'))
             return fechas_normalizadas
-        except ValueError:
-            pass
-    elif match_simple := re.search(r'(?:\w+ )?(\d+) de (\w+)', fecha_str): # Para casos sin hora
+        except: pass
+
+    elif match_simple := re.search(r'(?:\w+ )?(\d+) de (\w+)', fecha_str):
         dia, mes = match_simple.groups()
         try:
-            fecha_dt = pd.to_datetime(f'{dia} {mes} {año_actual}', format='%d %B %Y')
-            fechas_normalizadas.append(fecha_dt)
+            fechas_normalizadas.append(pd.to_datetime(f'{dia} {mes} {año_actual}', format='%d %B %Y'))
             return fechas_normalizadas
-        except ValueError:
-            pass
-    return []
+        except: pass
+
+    return fechas_normalizadas
 
 def procesar_dataframe_complejo(df, columna_fecha='Fecha'):
     """Procesa el DataFrame para normalizar la columna de fecha con la función compleja."""
@@ -1972,6 +1999,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
