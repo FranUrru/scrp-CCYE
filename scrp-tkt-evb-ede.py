@@ -2,6 +2,8 @@ import io
 import base64
 from email.message import EmailMessage
 from googleapiclient.discovery import build
+import os
+import pickle
 def log(mensaje):
     timestamp = datetime.now().strftime('%H:%M:%S')
     linea = f"[{timestamp}] {mensaje}"
@@ -1937,6 +1939,7 @@ procesar_duplicados_y_normalizar()
 destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
