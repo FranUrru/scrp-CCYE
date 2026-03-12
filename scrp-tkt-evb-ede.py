@@ -915,17 +915,17 @@ def ejecutar_scraper_eden():
         "inicio": datetime.now().strftime('%H:%M:%S')
     }
     
-        # --- ÁREA DE AUDITORÍA ---
-        df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link','Fecha Scrp'])
-    
-        def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href, col_href="Link"):
-            nonlocal df_rechazados
-            nuevo = pd.DataFrame([{
-                'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
-                'Motivo': motivo, 'Linea': str(linea), 'Fuente': fuente,
-                col_href: href, 'Fecha Scrp': datetime.now().strftime('%Y-%m-%d')
-            }])
-            df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
+    # --- ÁREA DE AUDITORÍA ---
+    df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link','Fecha Scrp'])
+
+    def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href, col_href="Link"):
+        nonlocal df_rechazados
+        nuevo = pd.DataFrame([{
+            'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
+            'Motivo': motivo, 'Linea': str(linea), 'Fuente': fuente,
+            col_href: href, 'Fecha Scrp': datetime.now().strftime('%Y-%m-%d')
+        }])
+        df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
 
     try:
         driver = iniciar_driver()
@@ -1972,6 +1972,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
