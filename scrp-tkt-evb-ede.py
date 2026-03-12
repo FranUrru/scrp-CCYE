@@ -436,7 +436,7 @@ def reordenar_y_agregar_columnas(df):
 
     # Crear las nuevas columnas vacías
     df['finaliza'] = None
-    df['tipo de evento'] = 'Espectáculo'
+    df['tipo de evento'] = None
     df['detalle'] = None
     df['alcance'] = None
 
@@ -1945,6 +1945,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
