@@ -3,7 +3,8 @@ import base64
 from email.message import EmailMessage
 from googleapiclient.discovery import build
 import os
-import pickle
+import joblib
+
 def log(mensaje):
     timestamp = datetime.now().strftime('%H:%M:%S')
     linea = f"[{timestamp}] {mensaje}"
@@ -33,7 +34,7 @@ def cargar_modelo_clasificador():
                 
             try:
                 with open(ruta, "rb") as f:
-                    _modelo_clasificador = pickle.load(f)
+                    _modelo_clasificador = joblib.load(ruta)
                 log(f"✅ Modelo clasificador cargado desde: {ruta}")
                 return _modelo_clasificador
             except Exception as e:
@@ -1944,6 +1945,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
