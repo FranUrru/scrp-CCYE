@@ -11,6 +11,7 @@ def log(mensaje):
 log_buffer = io.StringIO()
 
 
+
 def click_load_more_until_disappears(driver):
     """
     Hace clic en el botón 'Cargar más' repetidamente hasta que desaparece.
@@ -645,10 +646,14 @@ def ejecutar_scraper_ticketek():
         df_final['fecha de carga'] = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
         df_final['price_avg'] = df_final['price_avg'].astype(str).str.replace("'", "", regex=False).astype(float)
 
-        # 5. Exportar a Excel (Opcional si vas a Sheets, pero lo mantenemos)
-        #fecha_actual = datetime.now().strftime('%Y-%m-%d')
-        #ruta_archivo = f"C:/Users//OneDrive/Escritorio/ticketek/scrp_ticketek_{fecha_actual}.xlsx"
-        #df_final.to_excel(ruta_archivo, index=False)
+        df_final, metricas_tkt = aplicar_clasificador(
+            df=df_final,
+            col_nombre='title',
+            col_lugar='lugar',
+            col_tipo_evento='tipo de evento',
+            col_confianza='confianza_clasificacion'
+            )
+        log(f"🤖 Ticketek — Predicciones: {metricas_tkt['predicciones']} | Confianza promedio: {metricas_tkt['confianza_promedio']}")
 
         subir_a_google_sheets(df_final,'Ticketek historico (Auto)','Hoja 1')
         reporte["estado"] = "Exitoso"
@@ -928,6 +933,16 @@ def ejecutar_scraper_eden():
                 'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S') 
             }).dropna(subset=['Comienza'])
         df_final = df_final.drop_duplicates(subset=['Origen'])
+        
+        df_final, metricas_eden = aplicar_clasificador(
+            df=df_final,
+            col_nombre='Eventos',
+            col_lugar='Lugar',
+            col_tipo_evento='Tipo de evento',
+            col_confianza='confianza_clasificacion'
+            )
+        log(f"🤖 Eden — Predicciones: {metricas_eden['predicciones']} | Confianza promedio: {metricas_eden['confianza_promedio']}")
+        
         subir_a_google_sheets(df_final, 'Eden historico (Auto)', 'Hoja 1')
 
         # 6. Subida de Rechazados
@@ -1148,6 +1163,15 @@ def ejecutar_scraper_eventbrite():
             
             df_final_data = df_filtrado[mask_fecha_ok].copy()
 
+            df_final, metricas_eb = aplicar_clasificador(
+                df=df_final,
+                col_nombre='Nombre',
+                col_lugar='Locación',
+                col_tipo_evento='tipo de evento',
+                col_confianza='confianza_clasificacion'
+            )
+            log(f"🤖 Eventbrite — Predicciones: {metricas_eb['predicciones']} | Confianza promedio: {metricas_eb['confianza_promedio']}")
+            
             if not df_final_data.empty:
                 df_final = pd.DataFrame({
                     'Nombre': df_final_data['Nombre'],
@@ -1157,7 +1181,7 @@ def ejecutar_scraper_eventbrite():
                     'Precio': 0.0, 'fuente': 'eventbrite', 'Origen': df_final_data['Origen'],
                     'Fecha Scrp': datetime.today().strftime('%Y-%m-%d')
                 })
-
+                
                 subir_a_google_sheets(df_final, 'base_h_scrp_eventbrite', 'Hoja 1')
                 reporte["filas_procesadas"] = len(df_final)
                 reporte["estado"] = "Exitoso"
@@ -1403,6 +1427,15 @@ def ejecutar_scraper_ferias_y_congresos():
             df_final = df_final[columnas_ordenadas]
             print(f"Longitud df_final post columnas ordenadas{len(df_final)}")
             df_final['fecha de carga'] = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+
+            df_final, metricas_fc = aplicar_clasificador(
+                df=df_final,
+                col_nombre='Eventos',
+                col_lugar='Lugar',
+                col_tipo_evento='Tipo de evento',
+                col_confianza='confianza_clasificacion'
+            )
+            log(f"🤖 Ferias y Congresos — Predicciones: {metricas_fc['predicciones']} | Confianza promedio: {metricas_fc['confianza_promedio']}")
             
             # Subida a Sheets
             subir_a_google_sheets(df_final, 'Ferias y Congresos (Auto)', 'Hoja 1')
@@ -1549,7 +1582,16 @@ def ejecutar_scraper_turismo_cba():
 
         # 3. Procesamiento final y subida
         df_final = pd.DataFrame(eventos_lista)
-        
+
+        df_final, metricas_fc = aplicar_clasificador(
+            df=df_final,
+            col_nombre='Eventos',
+            col_lugar='Lugar',
+            col_tipo_evento='Tipo de evento',
+            col_confianza='confianza_clasificacion'
+        )
+        log(f"🤖 Ferias y Congresos — Predicciones: {metricas_fc['predicciones']} | Confianza promedio: {metricas_fc['confianza_promedio']}")
+                
         if not df_final.empty:
             # Subir a Google Sheets (usando tu función global)
             # Nota: Asegúrate de que el nombre del archivo en Sheets sea el correcto
@@ -1814,6 +1856,7 @@ procesar_duplicados_y_normalizar()
 destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
