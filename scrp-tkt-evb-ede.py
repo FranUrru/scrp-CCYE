@@ -931,25 +931,30 @@ def ejecutar_scraper_eden():
         driver = iniciar_driver()
         BASE_URL = "https://www.edenentradas.ar"
         driver.get(BASE_URL + "/")
+        print("Eden: Driver iniciado")
         time.sleep(5)
 
         # 2. Scrapeo de lista principal
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         eventos_html = soup.find_all('div', class_='grid_element')
-        
+        if eventos_html:
+                print("Eden: Elementos de grilla encontrados)
         if not eventos_html:
             registrar_rechazo("Página Principal", "N/A", "N/A", "No se detectaron elementos grid_element", "116", "Eden", BASE_URL)
+            print("No se detectador grid elements")
             return reporte
 
         data = []
+        print("EDEN:Iniciando Loopeo")
         for evento in eventos_html:
+            print("EDEN Loopeando...")
             data.append({
                 'Nombre': evento.find('div', class_='item_title').text.strip() if evento.find('div', class_='item_title') else None,
                 'Locación': evento.find('strong').text.strip() if evento.find('strong') else None,
                 'Fecha': evento.find('span').text.strip() if evento.find('span') else None,
                 'href': evento.find('a')['href'] if evento.find('a') else None
             })
-        
+        print("EDEN Loopeo finalizado")
         # --- AUDITORÍA POST-LISTA (Datos básicos incompletos) ---
         data_df = pd.DataFrame(data)
         sin_datos_basicos = data_df[data_df['Locación'].isna() | data_df['Nombre'].isna()]
@@ -1945,6 +1950,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
