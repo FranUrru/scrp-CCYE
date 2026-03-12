@@ -938,7 +938,7 @@ def ejecutar_scraper_eden():
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         eventos_html = soup.find_all('div', class_='grid_element')
         if eventos_html:
-                print("Eden: Elementos de grilla encontrados)
+                print("Eden: Elementos de grilla encontrados")
         if not eventos_html:
             registrar_rechazo("Página Principal", "N/A", "N/A", "No se detectaron elementos grid_element", "116", "Eden", BASE_URL)
             print("No se detectador grid elements")
@@ -1950,6 +1950,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
