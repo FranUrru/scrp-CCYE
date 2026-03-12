@@ -1043,16 +1043,29 @@ def ejecutar_scraper_eden():
                 registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], f"Error navegando detalle: {str(e)}", "871", "Eden", full_href)
                 continue
 
-        # 4. Filtrado y Normalización
-        data_df = data_df[data_df['filtro_ciudad'].str.contains('Córdoba|Cordoba', case=False, na=False)]
+# 4. Filtrado y Normalización
+        print(f"📊 DEBUG: Filas en data_df antes del filtro de ciudad: {len(data_df)}")
         
-        # --- AUDITORÍA POST-NORMALIZACIÓN DE FECHA ---
+        data_df = data_df[data_df['filtro_ciudad'].str.contains('Córdoba|Cordoba|Cba', case=False, na=False)]
+        
+        print(f"📊 DEBUG: Filas en data_df DESPUÉS del filtro de ciudad: {len(data_df)}")
+
+        # --- AUDITORÍA DE NORMALIZACIÓN ---
+        print("⚙️ Iniciando procesar_dataframe_complejo...")
         df_norm = procesar_dataframe_complejo(data_df)
         
-        # Verificamos si procesar_dataframe_complejo devolvió filas para este evento
-        eventos_antes = set(data_df['Nombre'])
-        eventos_despues = set(df_norm['Nombre'])
-        fallos_fecha = eventos_antes - eventos_despues
+        if df_norm is None:
+            print("❌ CRÍTICO: df_norm es None. La función falló internamente.")
+        else:
+            print(f"📊 DEBUG: Filas en df_norm generadas: {len(df_norm)}")
+
+        if not df_norm.empty:
+            print(f"✅ Eventos detectados para procesar: {df_norm['Nombre'].unique().tolist()}")
+        else:
+            print("❌ df_norm está VACÍO. El Regex no pudo convertir ninguna fecha de las filas que pasaron el filtro.")
+            # Ver qué fechas estamos intentando normalizar
+            if not data_df.empty:
+                print(f"🧐 Muestra de fechas que fallaron: {data_df['Fecha'].head(3).tolist()}")
         
         for nombre in fallos_fecha:
             # Buscamos el row original para el href
@@ -1999,6 +2012,7 @@ destinatarios=['furrutia@cordobaacelera.com.ar']
 #destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
+
 
 
 
