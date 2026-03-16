@@ -1,6 +1,6 @@
 selenium
 webdriver-manager
-pandas
+pandas == 2.3.2
 beautifulsoup4
 gspread
 oauth2client
