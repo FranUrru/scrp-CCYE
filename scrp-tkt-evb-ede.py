@@ -5,9 +5,7 @@ from googleapiclient.discovery import build
 import os
 import joblib
 import pandas as pd
-print('corriendo version del codigo 1402')
-print('VERSION PANDAS')
-print (pd.__version__)
+
 def log(mensaje):
     timestamp = datetime.now().strftime('%H:%M:%S')
     linea = f"[{timestamp}] {mensaje}"
@@ -764,7 +762,7 @@ def ejecutar_scraper_ticketek():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 log('TICKETEK')
-#ejecutar_scraper_ticketek()
+ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -1399,7 +1397,7 @@ def ejecutar_scraper_eventbrite():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
     return reporte
 
-intentos_maximos = 0
+intentos_maximos = 3
 resultado_final = None
 log('')
 log('EVENTBRITE')
@@ -1651,7 +1649,7 @@ def ejecutar_scraper_ferias_y_congresos():
 
 # Ejecución
 print("Iniciando Ferias y Congresos...")
-#ejecutar_scraper_ferias_y_congresos()
+ejecutar_scraper_ferias_y_congresos()
 
 
 log('')
