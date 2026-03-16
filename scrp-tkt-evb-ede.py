@@ -1060,15 +1060,7 @@ def ejecutar_scraper_eden():
 
         # 5. Formateo Final
         if not df_norm.empty:
-            # Forzamos que df_norm no tenga objetos Timestamp antes de construir df_final
-            # Forzamos que df_norm no tenga objetos Timestamp antes de construir df_final
-            for col in df_norm.select_dtypes(include=['datetime64[ns]', 'datetimetz']).columns:
-                df_norm[col] = df_norm[col].dt.strftime('%Y-%m-%d %H:%M:%S')
-            # Convertir Timestamps sueltos en columnas de tipo object
-            for col in df_norm.select_dtypes(include='object').columns:
-                df_norm[col] = df_norm[col].apply(
-                    lambda x: x.strftime('%Y-%m-%d %H:%M:%S') if isinstance(x, pd.Timestamp) else x
-                )
+            df_norm['Fecha'] = df_norm['Fecha'].dt.strftime('%Y-%m-%d %H:%M:%S')
             df_norm = df_norm.astype(str)
 
             df_final = pd.DataFrame({
