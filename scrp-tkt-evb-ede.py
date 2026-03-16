@@ -919,14 +919,23 @@ def procesar_dataframe_complejo(df, columna_fecha='Fecha'):
     """Procesa el DataFrame para normalizar la columna de fecha con la función compleja."""
     filas_nuevas = []
     for index, row in df.iterrows():
-        fecha_str = str(row[columna_fecha]).strip() # Asegurarse de que sea string y eliminar espacios alrededor
+        fecha_str = str(row[columna_fecha]).strip()
         fechas_normalizadas = normalizar_fecha_complejo(fecha_str)
         for fecha in fechas_normalizadas:
             nueva_fila = row.copy()
             nueva_fila[columna_fecha] = fecha
             filas_nuevas.append(nueva_fila)
 
+    if not filas_nuevas:
+        return pd.DataFrame()
+
     df_normalizado = pd.DataFrame(filas_nuevas)
+    
+    # >>> ESTA ES LA REPARACIÓN <<<
+    # Convertimos el Timestamp a String inmediatamente para evitar errores de Dtype
+    if columna_fecha in df_normalizado.columns:
+        df_normalizado[columna_fecha] = pd.to_datetime(df_normalizado[columna_fecha]).dt.strftime('%Y-%m-%d %H:%M:%S')
+    
     return df_normalizado
 
 def ejecutar_scraper_eden():
