@@ -956,7 +956,7 @@ def ejecutar_scraper_eden():
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
 
-    # 1. INICIALIZACIÓN DE VARIABLES (Evita errores de "unpack" en el return)
+    # 1. INICIALIZACIÓN DE VARIABLES
     driver = None
     df_final = pd.DataFrame()
     df_norm = pd.DataFrame()
@@ -994,7 +994,7 @@ def ejecutar_scraper_eden():
         
         if not eventos_html:
             registrar_rechazo("Página Principal", "N/A", "N/A", "No se detectaron elementos grid_element", "46", "Eden", BASE_URL)
-            return reporte, df_final, df_rechazados, df_norm, fallos_fecha, data_df
+            return reporte
 
         data = []
         print("EDEN: Iniciando Loopeo de grilla...")
@@ -1021,23 +1021,15 @@ def ejecutar_scraper_eden():
                 cols = soup_det.find_all('div', class_='col-xs-7')
                 raw_text = " | ".join([e.text.strip() for e in cols])
                 
-                # Guardamos los datos extraídos en el DataFrame
                 data_df.loc[index, 'filtro_ciudad'] = raw_text
-                # IMPORTANTE: Guardamos el texto sucio en 'Fecha' para que el normalizador tenga año y hora
                 data_df.loc[index, 'Fecha'] = raw_text 
 
-                # Filtro de ciudad (Cba, Córdoba, etc)
                 if not any(x in raw_text for x in ['Córdoba', 'Cordoba', 'Cba', 'CBA']):
                     continue
                 
-                # Limpieza de nombre de Lugar (quitamos el "Próximas fechas...")
-                if '|' in raw_text:
-                    lugar_limpio = raw_text.split('|')[-1].split('Cordoba')[0].strip()
-                else:
-                    lugar_limpio = row['Locación']
+                lugar_limpio = raw_text.split('|')[-1].split('Cordoba')[0].strip() if '|' in raw_text else row['Locación']
                 data_df.loc[index, 'Locación'] = lugar_limpio
 
-                # Intento de extracción de precios
                 try:
                     btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div.picker-full button.next, #buyButton")))
                     driver.execute_script("arguments[0].click();", btn)
@@ -1057,7 +1049,7 @@ def ejecutar_scraper_eden():
             print(f"⚙️ Normalizando {len(df_filtrado)} eventos...")
             df_norm = procesar_dataframe_complejo(df_filtrado, columna_fecha='Fecha')
             
-            # Auditoría de fechas fallidas
+            # Auditoría de fallos
             eventos_antes = set(df_filtrado['Nombre'])
             eventos_despues = set(df_norm['Nombre']) if not df_norm.empty else set()
             fallos_fecha = eventos_antes - eventos_despues
@@ -1068,6 +1060,9 @@ def ejecutar_scraper_eden():
 
         # 5. Formateo Final
         if not df_norm.empty:
+            # Forzamos que df_norm no tenga objetos Timestamp antes de construir df_final
+            df_norm = df_norm.astype(str)
+
             df_final = pd.DataFrame({
                 'Eventos': df_norm['Nombre'],
                 'Lugar': df_norm['Locación'],
@@ -1076,16 +1071,18 @@ def ejecutar_scraper_eden():
                 'Tipo de evento': None,
                 'Detalle': None,
                 'Alcance': None,
-                'Costo de entrada': df_norm.get('precio_promedio', None),
+                'Costo de entrada': df_norm.get('precio_promedio', ""),
                 'Fuente': 'Eden Entradas',
-                'Origen': df_norm['href'].apply(lambda x: f"https://www.edenentradas.ar{x.replace('..', '')}"),
+                'Origen': df_norm['href'].apply(lambda x: f"https://www.edenentradas.ar{str(x).replace('..', '')}"),
                 'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S') 
-            }).dropna(subset=['Comienza'])
+            })
             
+            # BLINDAJE FINAL: Convertimos todo el DF a string para evitar errores en el Clasificador
+            df_final = df_final.astype(str).replace('None', '').replace('nan', '')
             df_final = df_final.drop_duplicates(subset=['Origen'])
             
-            # Clasificador (usa tu función dummie si estás en local)
-            df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza')
+            # Clasificador
+            df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
             
             log(f"🤖 Eden — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
             subir_a_google_sheets(df_final, 'Eden historico (Auto)', 'Hoja 1')
@@ -1096,9 +1093,9 @@ def ejecutar_scraper_eden():
             print("❌ df_norm quedó vacío tras el proceso.")
             reporte["estado"] = "Advertencia: Sin datos normalizados"
 
-        # 6. Subida de Rechazados
+        # 6. Subida de Rechazados (también forzando strings)
         if not df_rechazados.empty:
-            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
+            subir_a_google_sheets(df_rechazados.astype(str), 'Rechazados', 'Eventos')
 
     except Exception as e:
         print(f"❌ ERROR CRÍTICO EN EDÉN: {e}")
@@ -1107,8 +1104,7 @@ def ejecutar_scraper_eden():
         
     finally:
         if driver: driver.quit()
-        return reporte
-log('')
+        return reportelog('')
 log('EDÉN')
 ejecutar_scraper_eden()
 
