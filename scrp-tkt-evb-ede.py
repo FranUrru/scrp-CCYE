@@ -4,7 +4,10 @@ from email.message import EmailMessage
 from googleapiclient.discovery import build
 import os
 import joblib
-print('corriendo version del codigo 12:59')
+import pandas as pd
+print('corriendo version del codigo 1402')
+print('VERSION PANDAS')
+print (pd.__version__)
 def log(mensaje):
     timestamp = datetime.now().strftime('%H:%M:%S')
     linea = f"[{timestamp}] {mensaje}"
@@ -1100,7 +1103,12 @@ def ejecutar_scraper_eden():
         # 5. Formateo Final
         if not df_norm.empty:
             df_norm['Fecha'] = df_norm['Fecha'].dt.strftime('%Y-%m-%d %H:%M:%S')
-            df_norm = df_norm.astype(str)
+            # En lugar de df_norm = df_norm.astype(str)
+            df_norm = df_norm.apply(lambda col: 
+                col.dt.strftime('%Y-%m-%d %H:%M:%S') 
+                if pd.api.types.is_datetime64_any_dtype(col) 
+                else col.astype(str)
+            )
 
             df_final = pd.DataFrame({
                 'Eventos': df_norm['Nombre'],
