@@ -1104,7 +1104,8 @@ def ejecutar_scraper_eden():
         
     finally:
         if driver: driver.quit()
-        return reportelog('')
+        return reporte
+log('')
 log('EDÉN')
 ejecutar_scraper_eden()
 
