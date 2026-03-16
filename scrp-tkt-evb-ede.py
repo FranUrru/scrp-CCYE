@@ -1048,7 +1048,7 @@ def ejecutar_scraper_eden():
         if not df_filtrado.empty:
             print(f"⚙️ Normalizando {len(df_filtrado)} eventos...")
             # === DEBUG INICIO ===
-            print('Debug previo a procesar_datafreme_complejo'
+            print('Debug previo a procesar_datafreme_complejo')
             print("\n📋 df_norm.dtypes:")
             print(df_norm.dtypes)
             
