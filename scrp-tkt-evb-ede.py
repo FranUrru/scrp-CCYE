@@ -933,7 +933,22 @@ def ejecutar_scraper_eden():
     from google.oauth2 import service_account
     import json
     import os
+    import pandas as pd
+    import time
+    from datetime import datetime
+    from bs4 import BeautifulSoup
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+
+    # 1. INICIALIZACIÓN DE VARIABLES (Evita errores de "unpack" en el return)
     driver = None
+    df_final = pd.DataFrame()
+    df_norm = pd.DataFrame()
+    data_df = pd.DataFrame()
+    fallos_fecha = set()
+    df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link','Fecha Scrp'])
+
     reporte = {
         "nombre": "Eden Entradas",
         "estado": "Pendiente",
@@ -941,9 +956,6 @@ def ejecutar_scraper_eden():
         "error": None,
         "inicio": datetime.now().strftime('%H:%M:%S')
     }
-    
-    # --- ÁREA DE AUDITORÍA ---
-    df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link','Fecha Scrp'])
 
     def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href, col_href="Link"):
         nonlocal df_rechazados
@@ -964,32 +976,24 @@ def ejecutar_scraper_eden():
         # 2. Scrapeo de lista principal
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         eventos_html = soup.find_all('div', class_='grid_element')
-        if eventos_html:
-                print("Eden: Elementos de grilla encontrados")
+        
         if not eventos_html:
-            registrar_rechazo("Página Principal", "N/A", "N/A", "No se detectaron elementos grid_element", "116", "Eden", BASE_URL)
-            print("No se detectador grid elements")
-            return reporte
+            registrar_rechazo("Página Principal", "N/A", "N/A", "No se detectaron elementos grid_element", "46", "Eden", BASE_URL)
+            return reporte, df_final, df_rechazados, df_norm, fallos_fecha, data_df
 
         data = []
-        print("EDEN:Iniciando Loopeo")
+        print("EDEN: Iniciando Loopeo de grilla...")
         for evento in eventos_html:
-            print("EDEN Loopeando...")
             data.append({
                 'Nombre': evento.find('div', class_='item_title').text.strip() if evento.find('div', class_='item_title') else None,
                 'Locación': evento.find('strong').text.strip() if evento.find('strong') else None,
                 'Fecha': evento.find('span').text.strip() if evento.find('span') else None,
                 'href': evento.find('a')['href'] if evento.find('a') else None
             })
-        print("EDEN Loopeo finalizado")
-        # --- AUDITORÍA POST-LISTA (Datos básicos incompletos) ---
-        data_df = pd.DataFrame(data)
-        sin_datos_basicos = data_df[data_df['Locación'].isna() | data_df['Nombre'].isna()]
-        for _, row in sin_datos_basicos.iterrows():
-            registrar_rechazo(row['Nombre'], "Incompleto", row['Fecha'], "Falta Locación o Nombre en el Grid", "851", "Eden", row['href'])
 
+        data_df = pd.DataFrame(data)
         data_df = data_df.dropna(subset=['Locación', 'href']).drop_duplicates(subset=['href']).reset_index(drop=True)
-        log(f"📊 Eden: {len(data_df)} eventos únicos detectados tras eliminar duplicados por link")
+        log(f"📊 Eden: {len(data_df)} eventos únicos detectados")
 
         # 3. Recorrido de detalles
         for index, row in data_df.iterrows():
@@ -999,84 +1003,53 @@ def ejecutar_scraper_eden():
                 time.sleep(3)
                 soup_det = BeautifulSoup(driver.page_source, 'html.parser')
                 
-                # --- NUEVOS PRINTS DE DIAGNÓSTICO ---
                 cols = soup_det.find_all('div', class_='col-xs-7')
-                
-                # Edén suele poner la info en el primer col-xs-7 después del título
                 raw_text = " | ".join([e.text.strip() for e in cols])
-                print(f"\n🔍 EVENTO: {row['Nombre']}")
-                print(f"📍 RAW COLS: {raw_text[:200]}...") # Ver que estamos trayendo
-
-                # Intentamos extraer el lugar específicamente
-                # En Edén el lugar suele estar después de la coma en la línea de la fecha
-                lugar_especifico = row['Locación'] 
-                if cols:
-                    # Buscamos si en los divs hay algo que parezca una dirección (tiene números)
-                    for c in cols:
-                        t = c.text.strip()
-                        if any(char.isdigit() for char in t) and len(t) > 5:
-                            lugar_especifico = t
-                            break
                 
-                print(f"🏠 Lugar Detectado: {lugar_especifico}")
+                # Guardamos los datos extraídos en el DataFrame
                 data_df.loc[index, 'filtro_ciudad'] = raw_text
-                data_df.loc[index, 'Locación_Detalle'] = lugar_especifico
+                # IMPORTANTE: Guardamos el texto sucio en 'Fecha' para que el normalizador tenga año y hora
+                data_df.loc[index, 'Fecha'] = raw_text 
 
-                # --- FILTRO DE CIUDAD ---
+                # Filtro de ciudad (Cba, Córdoba, etc)
                 if not any(x in raw_text for x in ['Córdoba', 'Cordoba', 'Cba', 'CBA']):
-                    print(f"❌ RECHAZADO: No es Córdoba")
                     continue
                 
-                print(f"✅ PASÓ FILTRO: Córdoba detectada")
-                # Usamos el 'raw_text' que ya limpiamos en el debug
-                data_df.loc[index, 'Fecha'] = raw_text 
-                
-                # Limpiamos el Lugar para que no diga "Próximas fechas"
-                lugar_limpio = raw_text.split('|')[-1].split('Cordoba')[0].strip() if '|' in raw_text else row['Locación']
+                # Limpieza de nombre de Lugar (quitamos el "Próximas fechas...")
+                if '|' in raw_text:
+                    lugar_limpio = raw_text.split('|')[-1].split('Cordoba')[0].strip()
+                else:
+                    lugar_limpio = row['Locación']
                 data_df.loc[index, 'Locación'] = lugar_limpio
 
-                # Precios...
+                # Intento de extracción de precios
                 try:
                     btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div.picker-full button.next, #buyButton")))
                     driver.execute_script("arguments[0].click();", btn)
-                    time.sleep(4)
+                    time.sleep(2)
                     data_df.loc[index, 'precio_promedio'] = extraer_promedio_precios(BeautifulSoup(driver.page_source, 'html.parser'))
                 except:
                     data_df.loc[index, 'precio_promedio'] = None
 
             except Exception as e:
-                print(f"❗ Error procesando {row['Nombre']}: {str(e)}")
-                registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], f"Error navegando detalle: {str(e)}", "871", "Eden", full_href)
+                registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], f"Error detalle: {str(e)}", "102", "Eden", full_href)
                 continue
 
-# 4. Filtrado y Normalización
-        print(f"📊 DEBUG: Filas en data_df antes del filtro de ciudad: {len(data_df)}")
+        # 4. Filtrado y Normalización
+        df_filtrado = data_df[data_df['filtro_ciudad'].str.contains('Córdoba|Cordoba|Cba', case=False, na=False)].copy()
         
-        data_df = data_df[data_df['filtro_ciudad'].str.contains('Córdoba|Cordoba|Cba', case=False, na=False)]
-        
-        print(f"📊 DEBUG: Filas en data_df DESPUÉS del filtro de ciudad: {len(data_df)}")
-
-        # --- AUDITORÍA DE NORMALIZACIÓN ---
-        print("⚙️ Iniciando procesar_dataframe_complejo...")
-        df_norm = procesar_dataframe_complejo(data_df)
-        
-        if df_norm is None:
-            print("❌ CRÍTICO: df_norm es None. La función falló internamente.")
-        else:
-            print(f"📊 DEBUG: Filas en df_norm generadas: {len(df_norm)}")
-
-        if not df_norm.empty:
-            print(f"✅ Eventos detectados para procesar: {df_norm['Nombre'].unique().tolist()}")
-        else:
-            print("❌ df_norm está VACÍO. El Regex no pudo convertir ninguna fecha de las filas que pasaron el filtro.")
-            # Ver qué fechas estamos intentando normalizar
-            if not data_df.empty:
-                print(f"🧐 Muestra de fechas que fallaron: {data_df['Fecha'].head(3).tolist()}")
-        
-        for nombre in fallos_fecha:
-            # Buscamos el row original para el href
-            orig = data_df[data_df['Nombre'] == nombre].iloc[0]
-            registrar_rechazo(nombre, orig['Locación'], orig['Fecha'], f"Regex falló: No se pudo normalizar la fecha: {orig['Fecha']}", "894", "Eden", orig['href'])
+        if not df_filtrado.empty:
+            print(f"⚙️ Normalizando {len(df_filtrado)} eventos...")
+            df_norm = procesar_dataframe_complejo(df_filtrado, columna_fecha='Fecha')
+            
+            # Auditoría de fechas fallidas
+            eventos_antes = set(df_filtrado['Nombre'])
+            eventos_despues = set(df_norm['Nombre']) if not df_norm.empty else set()
+            fallos_fecha = eventos_antes - eventos_despues
+            
+            for nombre in fallos_fecha:
+                orig = df_filtrado[df_filtrado['Nombre'] == nombre].iloc[0]
+                registrar_rechazo(nombre, orig['Locación'], orig['Fecha'], "Fallo Regex Normalizador", "121", "Eden", orig['href'])
 
         # 5. Formateo Final
         if not df_norm.empty:
@@ -1088,35 +1061,35 @@ def ejecutar_scraper_eden():
                 'Tipo de evento': None,
                 'Detalle': None,
                 'Alcance': None,
-                'Costo de entrada': df_norm['precio_promedio'],
+                'Costo de entrada': df_norm.get('precio_promedio', None),
                 'Fuente': 'Eden Entradas',
-                'Origen': df_norm['href'].str.replace('..', 'https://www.edenentradas.ar', regex=False),
-                # USAMOS SOLO FECHA (sin hora/min/seg) para que coincida con lo ya subido hoy
+                'Origen': df_norm['href'].apply(lambda x: f"https://www.edenentradas.ar{x.replace('..', '')}"),
                 'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S') 
             }).dropna(subset=['Comienza'])
-        df_final = df_final.drop_duplicates(subset=['Origen'])
-        
-        df_final, metricas_eden = aplicar_clasificador(
-            df=df_final,
-            col_nombre='Eventos',
-            col_lugar='Lugar',
-            col_tipo_evento='Tipo de evento',
-            col_confianza='confianza_clasificacion'
-            )
-        log(f"🤖 Eden — Predicciones: {metricas_eden['predicciones']} | Confianza promedio: {metricas_eden['confianza_promedio']}")
-        
-        subir_a_google_sheets(df_final, 'Eden historico (Auto)', 'Hoja 1')
+            
+            df_final = df_final.drop_duplicates(subset=['Origen'])
+            
+            # Clasificador (usa tu función dummie si estás en local)
+            df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza')
+            
+            log(f"🤖 Eden — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
+            subir_a_google_sheets(df_final, 'Eden historico (Auto)', 'Hoja 1')
+            
+            reporte["filas_procesadas"] = len(df_final)
+            reporte["estado"] = "Exitoso"
+        else:
+            print("❌ df_norm quedó vacío tras el proceso.")
+            reporte["estado"] = "Advertencia: Sin datos normalizados"
 
         # 6. Subida de Rechazados
         if not df_rechazados.empty:
             subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
 
-        reporte["estado"] = "Exitoso"
-        #reporte["filas_procesadas"] = len(df_final) if not df_norm.empty else 0
-
     except Exception as e:
+        print(f"❌ ERROR CRÍTICO EN EDÉN: {e}")
         reporte["estado"] = "Fallido"
         reporte["error"] = str(e)
+        
     finally:
         if driver: driver.quit()
         return reporte
