@@ -1047,7 +1047,46 @@ def ejecutar_scraper_eden():
         
         if not df_filtrado.empty:
             print(f"⚙️ Normalizando {len(df_filtrado)} eventos...")
+            # === DEBUG INICIO ===
+            print('Debug previo a procesar_datafreme_complejo'
+            print("\n📋 df_norm.dtypes:")
+            print(df_norm.dtypes)
+            
+            print("\n🔍 Tipos reales por columna (primeras 3 filas):")
+            for col in df_norm.columns:
+                print(f"\n  Columna: '{col}'")
+                for i, val in enumerate(df_norm[col].head(3)):
+                    print(f"    [{i}] tipo={type(val).__name__!r}  valor={repr(val)}")
+            
+            print("\n🧪 Buscando Timestamps sueltos en columnas object...")
+            for col in df_norm.select_dtypes(include='object').columns:
+                ts_mask = df_norm[col].apply(lambda x: isinstance(x, pd.Timestamp))
+                if ts_mask.any():
+                    print(f"  ⚠️  Columna '{col}' tiene {ts_mask.sum()} Timestamp(s):")
+                    print(df_norm.loc[ts_mask, col].head(3))
+            
+            print("\n✅ Fin diagnóstico df_norm")
+            # === DEBUG FIN ===
             df_norm = procesar_dataframe_complejo(df_filtrado, columna_fecha='Fecha')
+            # === DEBUG INICIO ===
+            print("\n📋 df_norm.dtypes:")
+            print(df_norm.dtypes)
+            
+            print("\n🔍 Tipos reales por columna (primeras 3 filas):")
+            for col in df_norm.columns:
+                print(f"\n  Columna: '{col}'")
+                for i, val in enumerate(df_norm[col].head(3)):
+                    print(f"    [{i}] tipo={type(val).__name__!r}  valor={repr(val)}")
+            
+            print("\n🧪 Buscando Timestamps sueltos en columnas object...")
+            for col in df_norm.select_dtypes(include='object').columns:
+                ts_mask = df_norm[col].apply(lambda x: isinstance(x, pd.Timestamp))
+                if ts_mask.any():
+                    print(f"  ⚠️  Columna '{col}' tiene {ts_mask.sum()} Timestamp(s):")
+                    print(df_norm.loc[ts_mask, col].head(3))
+            
+            print("\n✅ Fin diagnóstico df_norm")
+            # === DEBUG FIN ===
             
             # Auditoría de fallos
             eventos_antes = set(df_filtrado['Nombre'])
