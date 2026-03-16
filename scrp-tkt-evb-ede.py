@@ -1808,7 +1808,205 @@ def ejecutar_scraper_turismo_cba():
         return reporte
 
 #ejecutar_scraper_turismo_cba()
+def ejecutar_scraper_autoentrada():
+    import pandas as pd
+    import time
+    import re
+    import unicodedata
+    from datetime import datetime
+    from bs4 import BeautifulSoup
+    from selenium.webdriver.common.by import By
 
+    # --- VARIABLES ---
+    driver = None
+    df_final = pd.DataFrame()
+    df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link', 'Fecha Scrp'])
+
+    reporte = {
+        "nombre": "Autoentrada",
+        "estado": "Pendiente",
+        "filas_procesadas": 0,
+        "error": None,
+        "inicio": datetime.now().strftime('%H:%M:%S')
+    }
+
+    def registrar_rechazo(nombre, loc, fecha, motivo, linea, href):
+        nonlocal df_rechazados
+        nuevo = pd.DataFrame([{
+            'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
+            'Motivo': motivo, 'Linea': str(linea), 'Fuente': 'Autoentrada',
+            'Link': href, 'Fecha Scrp': datetime.now().strftime('%Y-%m-%d')
+        }])
+        df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
+
+    # --- FUNCIONES DE FECHA (del scraper original) ---
+    def normalizar_texto(texto):
+        if not texto: return ""
+        texto = texto.lower()
+        texto = ''.join((c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn'))
+        return texto.strip()
+
+    def extraer_componentes(t, mes_respaldo, anio_respaldo):
+        meses_map = {
+            "enero": "01", "febrero": "02", "marzo": "03", "abril": "04",
+            "mayo": "05", "junio": "06", "julio": "07", "agosto": "08",
+            "septiembre": "09", "octubre": "10", "noviembre": "11", "diciembre": "12"
+        }
+        partes = re.findall(r'[a-z]+|\d+', t)
+        numeros = [p for p in partes if p.isdigit()]
+        palabras = [p for p in partes if not p.isdigit()]
+
+        dia = "01"
+        for n in numeros:
+            if len(n) <= 2:
+                dia = n.zfill(2)
+                break
+
+        mes = mes_respaldo
+        for p in palabras:
+            if p in meses_map:
+                mes = meses_map[p]
+                break
+
+        anio = anio_respaldo
+        for n in numeros:
+            if len(n) == 4:
+                anio = n
+                break
+
+        return dia, mes, anio
+
+    def procesar_rango_fechas(fecha_full):
+        hoy = datetime.now()
+        mes_hoy = str(hoy.month).zfill(2)
+        anio_hoy = str(hoy.year)
+
+        t_full = normalizar_texto(fecha_full)
+        t_full = re.sub(r'lunes|martes|miercoles|jueves|viernes|sabado|domingo', '', t_full).strip()
+
+        if " al " in t_full:
+            partes = t_full.split(" al ")
+            dia_fin, mes_fin, anio_fin = extraer_componentes(partes[1], mes_hoy, anio_hoy)
+            dia_ini, mes_ini, anio_ini = extraer_componentes(partes[0], mes_fin, anio_fin)
+            return f"{dia_ini}/{mes_ini}/{anio_ini}", f"{dia_fin}/{mes_fin}/{anio_fin}"
+        else:
+            dia, mes, anio = extraer_componentes(t_full, mes_hoy, anio_hoy)
+            return f"{dia}/{mes}/{anio}", f"{dia}/{mes}/{anio}"
+
+    # --- LISTA NEGRA ---
+    interior = [
+        'carlos paz', 'cosquin', 'jesus maria', 'alta gracia',
+        'rio cuarto', 'villa maria', 'mina clavero', 'san francisco',
+        'rio ceballos', 'colonia caroya', 'villa allende', 'la cumbre',
+        'embalse', 'oncativo', 'cafayate', 'jujuy'
+    ]
+
+    try:
+        BASE_URL = "https://ventas.autoentrada.com/"
+        driver = iniciar_driver()
+        driver.get(BASE_URL)
+        log("Autoentrada: Driver iniciado")
+
+        # --- SCROLL INFINITO ---
+        log("Autoentrada: Cargando todos los eventos (scroll)...")
+        last_height = driver.execute_script("return document.body.scrollHeight")
+        while True:
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2.5)
+            new_height = driver.execute_script("return document.body.scrollHeight")
+            if new_height == last_height:
+                break
+            last_height = new_height
+
+        elementos = driver.find_elements(By.CLASS_NAME, "evento")
+        log(f"📊 Autoentrada: {len(elementos)} eventos totales detectados")
+
+        # --- LOOPEO ---
+        eventos_procesados = []
+        for el in elementos:
+            try:
+                nombre = el.find_element(By.TAG_NAME, "h2").text
+                info_p = el.find_element(By.TAG_NAME, "p").text
+                lineas = info_p.split('\n')
+
+                fecha_raw = lineas[0] if len(lineas) > 0 else ""
+                ubi_raw   = lineas[1] if len(lineas) > 1 else ""
+
+                ubi_norm = normalizar_texto(ubi_raw)
+                es_cordoba = any(p in ubi_norm for p in ['cordoba', 'cba'])
+                es_interior = any(loc in ubi_norm for loc in interior)
+
+                if not es_cordoba or es_interior:
+                    continue
+
+                f_inicio, f_termina = procesar_rango_fechas(fecha_raw)
+
+                if not f_inicio:
+                    registrar_rechazo(nombre, ubi_raw, fecha_raw, "Fallo parseo de fecha", "scraper", BASE_URL)
+                    continue
+
+                partes_ubi = [p.strip() for p in ubi_raw.split(',')]
+
+                eventos_procesados.append({
+                    'Eventos':          nombre,
+                    'Lugar':            partes_ubi[0] if partes_ubi else "",
+                    'Comienza':         f_inicio,
+                    'Finaliza':         f_termina,
+                    'Tipo de evento':   "",   # lo completa el clasificador
+                    'Detalle':          "",
+                    'Alcance':          "",
+                    'Costo de entrada': "",
+                    'Fuente':           'Autoentrada',
+                    'Origen':           BASE_URL,
+                    'fecha de carga':   datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                })
+
+            except Exception as e:
+                try:
+                    nombre_err = el.find_element(By.TAG_NAME, "h2").text
+                except:
+                    nombre_err = "Desconocido"
+                registrar_rechazo(nombre_err, "", "", f"Error extracción: {str(e)}", "loop", BASE_URL)
+                continue
+
+        log(f"📊 Autoentrada: {len(eventos_procesados)} eventos de Córdoba Capital")
+
+        # --- ARMADO Y SUBIDA ---
+        if eventos_procesados:
+            df_final = pd.DataFrame(eventos_procesados)
+            df_final = df_final.astype(str).replace('None', '').replace('nan', '')
+            df_final = df_final.drop_duplicates(subset=['Eventos', 'Comienza'])
+
+            # Clasificador
+            df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
+            log(f"🤖 Autoentrada — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
+
+            subir_a_google_sheets(df_final, 'Autoentrada historico (Auto)', 'sheet1')
+
+            reporte["filas_procesadas"] = len(df_final)
+            reporte["estado"] = "Exitoso"
+        else:
+            log("❌ Autoentrada: Sin eventos válidos tras el filtrado.")
+            reporte["estado"] = "Advertencia: Sin datos"
+
+        # Rechazados
+        if not df_rechazados.empty:
+            subir_a_google_sheets(df_rechazados.astype(str), 'Rechazados', 'Eventos')
+
+    except Exception as e:
+        log(f"❌ ERROR CRÍTICO EN AUTOENTRADA: {e}")
+        reporte["estado"] = "Fallido"
+        reporte["error"] = str(e)
+
+    finally:
+        if driver: driver.quit()
+        return reporte
+
+
+# --- LLAMADO (comentar para desactivar) ---
+log('')
+log('AUTOENTRADA')
+ejecutar_scraper_autoentrada()
 
 
 #Importante el orden. Marca jerarquía. El primero se mantiene siempre a la hora de comparar duplicados y así...
