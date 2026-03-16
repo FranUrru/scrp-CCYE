@@ -931,10 +931,16 @@ def procesar_dataframe_complejo(df, columna_fecha='Fecha'):
 
     df_normalizado = pd.DataFrame(filas_nuevas)
     
-    # >>> ESTA ES LA REPARACIÓN <<<
-    # Convertimos el Timestamp a String inmediatamente para evitar errores de Dtype
     if columna_fecha in df_normalizado.columns:
-        df_normalizado[columna_fecha] = pd.to_datetime(df_normalizado[columna_fecha]).dt.strftime('%Y-%m-%d %H:%M:%S')
+        # 1. Forzamos la conversión a datetime (asegura que .dt funcione)
+        fechas_dt = pd.to_datetime(df_normalizado[columna_fecha], errors='coerce')
+        
+        # 2. Convertimos a string formateado y lo guardamos en una variable limpia
+        fechas_str = fechas_dt.dt.strftime('%Y-%m-%d %H:%M:%S').fillna("")
+        
+        # 3. Reemplazamos la columna entera forzando el tipo de dato final a object (string)
+        df_normalizado[columna_fecha] = fechas_str.values
+        df_normalizado[columna_fecha] = df_normalizado[columna_fecha].astype(str)
     
     return df_normalizado
 
