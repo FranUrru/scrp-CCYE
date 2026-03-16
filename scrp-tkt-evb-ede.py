@@ -1981,7 +1981,7 @@ def ejecutar_scraper_autoentrada():
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
             log(f"🤖 Autoentrada — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
 
-            subir_a_google_sheets(df_final, 'Autoentrada historico (Auto)', 'sheet1')
+            subir_a_google_sheets(df_final, 'Autoentrada historico (Auto)', 'Hoja 1')
 
             reporte["filas_procesadas"] = len(df_final)
             reporte["estado"] = "Exitoso"
