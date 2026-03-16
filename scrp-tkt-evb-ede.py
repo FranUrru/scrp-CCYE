@@ -2240,8 +2240,8 @@ procesar_duplicados_y_normalizar()
 
 
 
-destinatarios=['furrutia@cordobaacelera.com.ar']
-#destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
+#destinatarios=['furrutia@cordobaacelera.com.ar']
+destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
 
