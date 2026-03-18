@@ -2160,7 +2160,9 @@ dict_fuentes = {
     'Ferias y Congresos': 'Ferias y Congresos (Auto)',
     'Ticketek': 'Ticketek historico (Auto)',
     'Eden Entradas': 'Eden historico (Auto)',
+    'Autoentrada': 'Autoentrada historico (Auto)',
     'Agencia Turismo Cba':'Turismo CBA (Auto)',
+    'Ente Metropolitano':'Metropolitano historico (Auto)',
     'eventbrite': 'base_h_scrp_eventbrite'
 }
 
