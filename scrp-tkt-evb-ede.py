@@ -1809,14 +1809,6 @@ def ejecutar_scraper_turismo_cba():
 
 #ejecutar_scraper_turismo_cba()
 def ejecutar_scraper_autoentrada():
-    import pandas as pd
-    import time
-    import re
-    import unicodedata
-    from datetime import datetime
-    from bs4 import BeautifulSoup
-    from selenium.webdriver.common.by import By
-
     # --- VARIABLES ---
     driver = None
     df_final = pd.DataFrame()
@@ -1839,7 +1831,6 @@ def ejecutar_scraper_autoentrada():
         }])
         df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
 
-    # --- FUNCIONES DE FECHA (del scraper original) ---
     def normalizar_texto(texto):
         if not texto: return ""
         texto = texto.lower()
@@ -1910,7 +1901,7 @@ def ejecutar_scraper_autoentrada():
         # --- SCROLL INFINITO ---
         log("Autoentrada: Cargando todos los eventos (scroll)...")
         last_height = driver.execute_script("return document.body.scrollHeight")
-        while True:
+        for _ in range(15): # Límite de seguridad de 15 scrolls
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2.5)
             new_height = driver.execute_script("return document.body.scrollHeight")
@@ -1925,9 +1916,17 @@ def ejecutar_scraper_autoentrada():
         eventos_procesados = []
         for el in elementos:
             try:
+                # --- EXTRACCIÓN DEL LINK ESPECÍFICO ---
+                try:
+                    # Buscamos el <a> que contiene todo el evento
+                    link_element = el.find_element(By.TAG_NAME, "a")
+                    url_evento = link_element.get_attribute("href")
+                except:
+                    url_evento = BASE_URL
+
                 nombre = el.find_element(By.TAG_NAME, "h2").text
                 info_p = el.find_element(By.TAG_NAME, "p").text
-                lineas = info_p.split('\n')
+                lineas = [l.strip() for l in info_p.split('\n') if l.strip()]
 
                 fecha_raw = lineas[0] if len(lineas) > 0 else ""
                 ubi_raw   = lineas[1] if len(lineas) > 1 else ""
@@ -1936,13 +1935,14 @@ def ejecutar_scraper_autoentrada():
                 es_cordoba = any(p in ubi_norm for p in ['cordoba', 'cba'])
                 es_interior = any(loc in ubi_norm for loc in interior)
 
+                # Filtrado geográfico
                 if not es_cordoba or es_interior:
                     continue
 
                 f_inicio, f_termina = procesar_rango_fechas(fecha_raw)
 
                 if not f_inicio:
-                    registrar_rechazo(nombre, ubi_raw, fecha_raw, "Fallo parseo de fecha", "scraper", BASE_URL)
+                    registrar_rechazo(nombre, ubi_raw, fecha_raw, "Fallo parseo de fecha", "scraper", url_evento)
                     continue
 
                 partes_ubi = [p.strip() for p in ubi_raw.split(',')]
@@ -1952,12 +1952,12 @@ def ejecutar_scraper_autoentrada():
                     'Lugar':            partes_ubi[0] if partes_ubi else "",
                     'Comienza':         f_inicio,
                     'Finaliza':         f_termina,
-                    'Tipo de evento':   "",   # lo completa el clasificador
+                    'Tipo de evento':   "",   # Lo completa el clasificador
                     'Detalle':          "",
                     'Alcance':          "",
                     'Costo de entrada': "",
                     'Fuente':           'Autoentrada',
-                    'Origen':           BASE_URL,
+                    'Origen':           url_evento, # URL ÚNICA
                     'fecha de carga':   datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 })
 
@@ -1974,12 +1974,15 @@ def ejecutar_scraper_autoentrada():
         # --- ARMADO Y SUBIDA ---
         if eventos_procesados:
             df_final = pd.DataFrame(eventos_procesados)
-            df_final = df_final.astype(str).replace('None', '').replace('nan', '')
+            # Limpiamos duplicados internos antes de clasificar
             df_final = df_final.drop_duplicates(subset=['Eventos', 'Comienza'])
-
+            
             # Clasificador
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
             log(f"🤖 Autoentrada — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
+
+            # Reemplazar valores nulos finales para Sheets
+            df_final = df_final.astype(str).replace(['None', 'nan', 'NaN'], '')
 
             subir_a_google_sheets(df_final, 'Autoentrada historico (Auto)', 'Hoja 1')
 
@@ -1989,7 +1992,7 @@ def ejecutar_scraper_autoentrada():
             log("❌ Autoentrada: Sin eventos válidos tras el filtrado.")
             reporte["estado"] = "Advertencia: Sin datos"
 
-        # Rechazados
+        # Subida de Rechazados
         if not df_rechazados.empty:
             subir_a_google_sheets(df_rechazados.astype(str), 'Rechazados', 'Eventos')
 
@@ -1999,7 +2002,8 @@ def ejecutar_scraper_autoentrada():
         reporte["error"] = str(e)
 
     finally:
-        if driver: driver.quit()
+        if driver: 
+            driver.quit()
         return reporte
 
 
