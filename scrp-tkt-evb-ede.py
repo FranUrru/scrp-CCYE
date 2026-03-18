@@ -625,7 +625,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
             
     return False
     
-def raper_ticketek():
+def ejecuutar_scraper_ticketek():
     """
     Ejecuta el scraper y devuelve un reporte del estado.
     """
