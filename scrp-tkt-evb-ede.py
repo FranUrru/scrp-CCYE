@@ -2165,7 +2165,7 @@ def ejecutar_scraper_metropolitano():
             df_final = df_final.astype(str).replace('None', '').replace('nan', '')
             df_final = df_final.drop_duplicates(subset=['Origen'])
 
-            subir_a_google_sheets(df_final, 'Metropolitano historico (Auto)', 'sheet1')
+            subir_a_google_sheets(df_final, 'Metropolitano historico (Auto)', 'Hoja 1')
 
             reporte["filas_procesadas"] = len(df_final)
             reporte["estado"] = "Exitoso"
