@@ -625,7 +625,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
             
     return False
     
-def ejecutar_scraper_ticketek():
+def raper_ticketek():
     """
     Ejecuta el scraper y devuelve un reporte del estado.
     """
@@ -638,7 +638,7 @@ def ejecutar_scraper_ticketek():
         "inicio": datetime.now().strftime('%H:%M:%S')
     }
     
-    # Este DataFrame vive en el ámbito de ejecutar_scraper_ticketek
+    # Este DataFrame vive en el ámbito de raper_ticketek
     df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente'])
 
     # Esta función DEBE estar aquí adentro (un nivel de tabulación más)
@@ -762,7 +762,7 @@ def ejecutar_scraper_ticketek():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 log('TICKETEK')
-ejecutar_scraper_ticketek()
+#ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -1150,7 +1150,7 @@ def ejecutar_scraper_eden():
         return reporte
 log('')
 log('EDÉN')
-ejecutar_scraper_eden()
+#ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1397,7 +1397,7 @@ def ejecutar_scraper_eventbrite():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
     return reporte
 
-intentos_maximos = 3
+intentos_maximos = 0
 resultado_final = None
 log('')
 log('EVENTBRITE')
@@ -1649,7 +1649,7 @@ def ejecutar_scraper_ferias_y_congresos():
 
 # Ejecución
 print("Iniciando Ferias y Congresos...")
-ejecutar_scraper_ferias_y_congresos()
+#ejecutar_scraper_ferias_y_congresos()
 
 
 log('')
@@ -2006,7 +2006,7 @@ def ejecutar_scraper_autoentrada():
 # --- LLAMADO (comentar para desactivar) ---
 log('')
 log('AUTOENTRADA')
-ejecutar_scraper_autoentrada()
+#ejecutar_scraper_autoentrada()
 
 #ENTE METROPOLITANO
 def ejecutar_scraper_metropolitano():
@@ -2423,8 +2423,8 @@ procesar_duplicados_y_normalizar()
 
 
 
-#destinatarios=['furrutia@cordobaacelera.com.ar']
-destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
+destinatarios=['furrutia@cordobaacelera.com.ar']
+#destinatarios=['furrutia@cordobaacelera.com.ar','meabeldano@cordobaacelera.com.ar','pgonzalez@cordobaacelera.com.ar']
 contenido_final_log = log_buffer.getvalue()
 enviar_log_smtp(contenido_final_log, destinatarios)
 
