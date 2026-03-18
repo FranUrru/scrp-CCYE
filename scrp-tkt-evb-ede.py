@@ -625,7 +625,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
             
     return False
     
-def ejecuutar_scraper_ticketek():
+def ejecutar_scraper_ticketek():
     """
     Ejecuta el scraper y devuelve un reporte del estado.
     """
@@ -762,7 +762,7 @@ def ejecuutar_scraper_ticketek():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 log('TICKETEK')
-#ejecutar_scraper_ticketek()
+ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -1150,7 +1150,7 @@ def ejecutar_scraper_eden():
         return reporte
 log('')
 log('EDÉN')
-#ejecutar_scraper_eden()
+ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1397,7 +1397,7 @@ def ejecutar_scraper_eventbrite():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
     return reporte
 
-intentos_maximos = 0
+intentos_maximos = 3
 resultado_final = None
 log('')
 log('EVENTBRITE')
@@ -1649,7 +1649,7 @@ def ejecutar_scraper_ferias_y_congresos():
 
 # Ejecución
 print("Iniciando Ferias y Congresos...")
-#ejecutar_scraper_ferias_y_congresos()
+ejecutar_scraper_ferias_y_congresos()
 
 
 log('')
@@ -1889,8 +1889,8 @@ def ejecutar_scraper_autoentrada():
         BASE_URL = "https://ventas.autoentrada.com/"
         driver = iniciar_driver()
         driver.get(BASE_URL)
-        log("Autoentrada: Driver iniciado")
-        log("Autoentrada: Cargando todos los eventos (scroll)...")
+        print("Autoentrada: Driver iniciado")
+        print("Autoentrada: Cargando todos los eventos (scroll)...")
         last_height = driver.execute_script("return document.body.scrollHeight")
         while True:
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -1900,7 +1900,7 @@ def ejecutar_scraper_autoentrada():
                 break
             last_height = new_height
         elementos = driver.find_elements(By.CLASS_NAME, "evento")
-        log(f"📊 Autoentrada: {len(elementos)} eventos totales detectados")
+        print(f"📊 Autoentrada: {len(elementos)} eventos totales detectados")
         eventos_procesados = []
         for el in elementos:
             try:
@@ -1943,7 +1943,7 @@ def ejecutar_scraper_autoentrada():
                     nombre_err = "Desconocido"
                 registrar_rechazo(nombre_err, "", "", f"Error extracción: {str(e)}", "loop", BASE_URL)
                 continue
-        log(f"📊 Autoentrada: {len(eventos_procesados)} eventos de Córdoba Capital")
+        print(f"📊 Autoentrada: {len(eventos_procesados)} eventos de Córdoba Capital")
         if eventos_procesados:
             df_final = pd.DataFrame(eventos_procesados)
             df_final = df_final.drop_duplicates(subset=['Eventos', 'Comienza'])
@@ -2066,7 +2066,7 @@ def ejecutar_scraper_metropolitano():
                 )
                 driver.execute_script("arguments[0].click();", btn)
                 clicks += 1
-                log(f"Metropolitano: Click #{clicks} en 'Cargar más'")
+                print(f"Metropolitano: Click #{clicks} en 'Cargar más'")
                 time.sleep(2)
 
             except Exception as e:
@@ -2076,7 +2076,7 @@ def ejecutar_scraper_metropolitano():
         # --- PARSEO ---
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         eventos_html = soup.select('div#eventos-container a.evento')
-        log(f"📊 Metropolitano: {len(eventos_html)} eventos detectados")
+        print(f"📊 Metropolitano: {len(eventos_html)} eventos detectados")
 
         eventos_procesados = []
         for ev in eventos_html:
@@ -2120,7 +2120,7 @@ def ejecutar_scraper_metropolitano():
                 )
                 continue
 
-        log(f"📊 Metropolitano: {len(eventos_procesados)} eventos válidos")
+        print(f"📊 Metropolitano: {len(eventos_procesados)} eventos válidos")
 
         # --- SUBIDA ---
         if eventos_procesados:
