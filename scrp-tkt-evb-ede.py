@@ -2008,6 +2008,189 @@ log('')
 log('AUTOENTRADA')
 ejecutar_scraper_autoentrada()
 
+#ENTE METROPOLITANO
+def ejecutar_scraper_metropolitano():
+    import pandas as pd
+    import re
+    import time
+    from datetime import datetime
+    from bs4 import BeautifulSoup
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+
+    driver = None
+    df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link', 'Fecha Scrp'])
+
+    reporte = {
+        "nombre": "Ente Metropolitano",
+        "estado": "Pendiente",
+        "filas_procesadas": 0,
+        "error": None,
+        "inicio": datetime.now().strftime('%H:%M:%S')
+    }
+
+    def registrar_rechazo(nombre, loc, fecha, motivo, linea, href):
+        nonlocal df_rechazados
+        nuevo = pd.DataFrame([{
+            'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
+            'Motivo': motivo, 'Linea': str(linea), 'Fuente': 'Ente Metropolitano',
+            'Link': href, 'Fecha Scrp': datetime.now().strftime('%Y-%m-%d')
+        }])
+        df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
+
+    def parsear_fecha_metropolitano(fecha_raw):
+        texto = fecha_raw.replace('\n', ' ').strip()
+        texto = re.sub(r'\s+', ' ', texto)
+
+        RE_FECHA = r'\d{2}/\d{2}/\d{4}'
+        RE_HORA  = r'\d{2}:\d{2}'
+
+        def fecha_a_iso(f, h="00:00"):
+            try:
+                return datetime.strptime(f"{f} {h}", "%d/%m/%Y %H:%M").strftime("%Y-%m-%d %H:%M:%S")
+            except:
+                return None
+
+        fechas = re.findall(RE_FECHA, texto)
+        horas  = re.findall(RE_HORA,  texto)
+
+        # CASO A: Dos fechas — "09/01/2026 - 11/02/2026"
+        if len(fechas) == 2:
+            comienza = fecha_a_iso(fechas[0], horas[0] if horas else "00:00")
+            finaliza = fecha_a_iso(fechas[1], horas[1] if len(horas) > 1 else (horas[0] if horas else "00:00"))
+            return comienza, finaliza
+
+        # CASO B: Una fecha
+        if len(fechas) == 1:
+            f = fechas[0]
+
+            # B1: Dos horas — "17/02/2026 17:00 - 20:00"
+            if len(horas) == 2:
+                return fecha_a_iso(f, horas[0]), fecha_a_iso(f, horas[1])
+
+            # B2: Una hora — "14/03/2026 18:00"
+            if len(horas) == 1:
+                iso = fecha_a_iso(f, horas[0])
+                return iso, iso
+
+            # B3: Sin hora
+            iso = fecha_a_iso(f)
+            return iso, iso
+
+        # CASO C: Sin fecha reconocible
+        return None, None
+
+    try:
+        BASE_URL = "https://entemetropolitano.gob.ar/agenda-de-eventos/"
+        driver = iniciar_driver()
+        driver.get(BASE_URL)
+        log("Metropolitano: Driver iniciado")
+        time.sleep(3)
+
+        # --- CARGAR TODOS LOS EVENTOS ---
+        log("Metropolitano: Cargando todos los eventos...")
+        clicks = 0
+        while True:
+            try:
+                fin = driver.find_element(By.ID, "mensaje-fin-eventos")
+                if fin.is_displayed():
+                    log(f"Metropolitano: Fin de eventos tras {clicks} clicks")
+                    break
+
+                btn = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.ID, "btn-cargar-mas-eventos"))
+                )
+                driver.execute_script("arguments[0].click();", btn)
+                clicks += 1
+                log(f"Metropolitano: Click #{clicks} en 'Cargar más'")
+                time.sleep(2)
+
+            except Exception as e:
+                log(f"Metropolitano: Loop de carga finalizado — {e}")
+                break
+
+        # --- PARSEO ---
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        eventos_html = soup.select('div#eventos-container a.evento')
+        log(f"📊 Metropolitano: {len(eventos_html)} eventos detectados")
+
+        eventos_procesados = []
+        for ev in eventos_html:
+            try:
+                nombre_el  = ev.select_one('h3.evento-titulo')
+                fecha_el   = ev.select_one('div.evento-fecha p')
+                lugar_el   = ev.select_one('div.evento-ubicacion p')
+                href       = ev.get('href', BASE_URL)
+
+                nombre    = nombre_el.text.strip() if nombre_el else None
+                fecha_raw = fecha_el.text.strip()  if fecha_el  else ""
+                lugar_raw = lugar_el.text.strip()  if lugar_el  else ""
+
+                if not nombre:
+                    continue
+
+                comienza, finaliza = parsear_fecha_metropolitano(fecha_raw)
+
+                if not comienza:
+                    registrar_rechazo(nombre, lugar_raw, fecha_raw, "Sin fecha reconocible", "parseo", href)
+                    continue
+
+                eventos_procesados.append({
+                    'Eventos':          nombre,
+                    'Lugar':            lugar_raw,
+                    'Comienza':         comienza,
+                    'Finaliza':         finaliza,
+                    'Tipo de evento':   "",
+                    'Detalle':          "",
+                    'Alcance':          "",
+                    'Costo de entrada': "",
+                    'Fuente':           'Ente Metropolitano',
+                    'Origen':           href,
+                    'fecha de carga':   datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                })
+
+            except Exception as e:
+                registrar_rechazo(
+                    ev.select_one('h3.evento-titulo').text.strip() if ev.select_one('h3.evento-titulo') else "Desconocido",
+                    "", "", f"Error extracción: {str(e)}", "loop", BASE_URL
+                )
+                continue
+
+        log(f"📊 Metropolitano: {len(eventos_procesados)} eventos válidos")
+
+        # --- SUBIDA ---
+        if eventos_procesados:
+            df_final = pd.DataFrame(eventos_procesados)
+            df_final = df_final.astype(str).replace('None', '').replace('nan', '')
+            df_final = df_final.drop_duplicates(subset=['Origen'])
+
+            subir_a_google_sheets(df_final, 'Metropolitano historico (Auto)', 'sheet1')
+
+            reporte["filas_procesadas"] = len(df_final)
+            reporte["estado"] = "Exitoso"
+        else:
+            log("❌ Metropolitano: Sin eventos válidos.")
+            reporte["estado"] = "Advertencia: Sin datos"
+
+        if not df_rechazados.empty:
+            subir_a_google_sheets(df_rechazados.astype(str), 'Rechazados', 'Eventos')
+
+    except Exception as e:
+        log(f"❌ ERROR CRÍTICO EN METROPOLITANO: {e}")
+        reporte["estado"] = "Fallido"
+        reporte["error"] = str(e)
+
+    finally:
+        if driver: driver.quit()
+        return reporte
+
+
+# --- LLAMADO (comentar para desactivar) ---
+log('')
+log('METROPOLITANO')
+ejecutar_scraper_metropolitano()
+
 
 #Importante el orden. Marca jerarquía. El primero se mantiene siempre a la hora de comparar duplicados y así...
 dict_fuentes = {
