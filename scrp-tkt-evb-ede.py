@@ -2006,7 +2006,7 @@ def ejecutar_scraper_autoentrada():
 # --- LLAMADO (comentar para desactivar) ---
 log('')
 log('AUTOENTRADA')
-#ejecutar_scraper_autoentrada()
+ejecutar_scraper_autoentrada()
 
 #ENTE METROPOLITANO
 def ejecutar_scraper_metropolitano():
@@ -2085,17 +2085,17 @@ def ejecutar_scraper_metropolitano():
         BASE_URL = "https://entemetropolitano.gob.ar/agenda-de-eventos/"
         driver = iniciar_driver()
         driver.get(BASE_URL)
-        log("Metropolitano: Driver iniciado")
+        print("Metropolitano: Driver iniciado")
         time.sleep(3)
 
         # --- CARGAR TODOS LOS EVENTOS ---
-        log("Metropolitano: Cargando todos los eventos...")
+        print("Metropolitano: Cargando todos los eventos...")
         clicks = 0
         while True:
             try:
                 fin = driver.find_element(By.ID, "mensaje-fin-eventos")
                 if fin.is_displayed():
-                    log(f"Metropolitano: Fin de eventos tras {clicks} clicks")
+                    print(f"Metropolitano: Fin de eventos tras {clicks} clicks")
                     break
 
                 btn = WebDriverWait(driver, 10).until(
@@ -2107,7 +2107,7 @@ def ejecutar_scraper_metropolitano():
                 time.sleep(2)
 
             except Exception as e:
-                log(f"Metropolitano: Loop de carga finalizado — {e}")
+                print(f"Metropolitano: Loop de carga finalizado — {e}")
                 break
 
         # --- PARSEO ---
