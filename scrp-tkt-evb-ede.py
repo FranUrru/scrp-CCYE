@@ -1972,22 +1972,21 @@ log('AUTOENTRADA')
 ejecutar_scraper_autoentrada()
 
 #ENTE METROPOLITANO
-def ejecutar_scraper_autoentrada():
+def ejecutar_scraper_metropolitano():
     import pandas as pd
-    import time
     import re
-    import unicodedata
+    import time
     from datetime import datetime
     from bs4 import BeautifulSoup
     from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
 
-    # --- VARIABLES ---
     driver = None
-    df_final = pd.DataFrame()
     df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link', 'Fecha Scrp'])
 
     reporte = {
-        "nombre": "Autoentrada",
+        "nombre": "Ente Metropolitano",
         "estado": "Pendiente",
         "filas_procesadas": 0,
         "error": None,
@@ -1998,167 +1997,152 @@ def ejecutar_scraper_autoentrada():
         nonlocal df_rechazados
         nuevo = pd.DataFrame([{
             'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
-            'Motivo': motivo, 'Linea': str(linea), 'Fuente': 'Autoentrada',
+            'Motivo': motivo, 'Linea': str(linea), 'Fuente': 'Ente Metropolitano',
             'Link': href, 'Fecha Scrp': datetime.now().strftime('%Y-%m-%d')
         }])
         df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
 
-    # --- FUNCIONES DE FECHA (del scraper original) ---
-    def normalizar_texto(texto):
-        if not texto: return ""
-        texto = texto.lower()
-        texto = ''.join((c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn'))
-        return texto.strip()
+    def parsear_fecha_metropolitano(fecha_raw):
+        texto = fecha_raw.replace('\n', ' ').strip()
+        texto = re.sub(r'\s+', ' ', texto)
 
-    def extraer_componentes(t, mes_respaldo, anio_respaldo):
-        meses_map = {
-            "enero": "01", "febrero": "02", "marzo": "03", "abril": "04",
-            "mayo": "05", "junio": "06", "julio": "07", "agosto": "08",
-            "septiembre": "09", "octubre": "10", "noviembre": "11", "diciembre": "12"
-        }
-        partes = re.findall(r'[a-z]+|\d+', t)
-        numeros = [p for p in partes if p.isdigit()]
-        palabras = [p for p in partes if not p.isdigit()]
+        RE_FECHA = r'\d{2}/\d{2}/\d{4}'
+        RE_HORA  = r'\d{2}:\d{2}'
 
-        dia = "01"
-        for n in numeros:
-            if len(n) <= 2:
-                dia = n.zfill(2)
-                break
+        def fecha_a_iso(f, h="00:00"):
+            try:
+                return datetime.strptime(f"{f} {h}", "%d/%m/%Y %H:%M").strftime("%Y-%m-%d %H:%M:%S")
+            except:
+                return None
 
-        mes = mes_respaldo
-        for p in palabras:
-            if p in meses_map:
-                mes = meses_map[p]
-                break
+        fechas = re.findall(RE_FECHA, texto)
+        horas  = re.findall(RE_HORA,  texto)
 
-        anio = anio_respaldo
-        for n in numeros:
-            if len(n) == 4:
-                anio = n
-                break
+        # CASO A: Dos fechas — "09/01/2026 - 11/02/2026"
+        if len(fechas) == 2:
+            comienza = fecha_a_iso(fechas[0], horas[0] if horas else "00:00")
+            finaliza = fecha_a_iso(fechas[1], horas[1] if len(horas) > 1 else (horas[0] if horas else "00:00"))
+            return comienza, finaliza
 
-        return dia, mes, anio
+        # CASO B: Una fecha
+        if len(fechas) == 1:
+            f = fechas[0]
+            if len(horas) == 2:
+                return fecha_a_iso(f, horas[0]), fecha_a_iso(f, horas[1])
+            if len(horas) == 1:
+                iso = fecha_a_iso(f, horas[0])
+                return iso, iso
+            iso = fecha_a_iso(f)
+            return iso, iso
 
-    def procesar_rango_fechas(fecha_full):
-        hoy = datetime.now()
-        mes_hoy = str(hoy.month).zfill(2)
-        anio_hoy = str(hoy.year)
-
-        t_full = normalizar_texto(fecha_full)
-        t_full = re.sub(r'lunes|martes|miercoles|jueves|viernes|sabado|domingo', '', t_full).strip()
-
-        if " al " in t_full:
-            partes = t_full.split(" al ")
-            dia_fin, mes_fin, anio_fin = extraer_componentes(partes[1], mes_hoy, anio_hoy)
-            dia_ini, mes_ini, anio_ini = extraer_componentes(partes[0], mes_fin, anio_fin)
-            return f"{dia_ini}/{mes_ini}/{anio_ini}", f"{dia_fin}/{mes_fin}/{anio_fin}"
-        else:
-            dia, mes, anio = extraer_componentes(t_full, mes_hoy, anio_hoy)
-            return f"{dia}/{mes}/{anio}", f"{dia}/{mes}/{anio}"
-
-    # --- LISTA NEGRA ---
-    interior = [
-        'carlos paz', 'cosquin', 'jesus maria', 'alta gracia',
-        'rio cuarto', 'villa maria', 'mina clavero', 'san francisco',
-        'rio ceballos', 'colonia caroya', 'villa allende', 'la cumbre',
-        'embalse', 'oncativo', 'cafayate', 'jujuy'
-    ]
+        # CASO C: Sin fecha reconocible
+        return None, None
 
     try:
-        BASE_URL = "https://ventas.autoentrada.com/"
+        BASE_URL = "https://entemetropolitano.gob.ar/agenda-de-eventos/"
         driver = iniciar_driver()
         driver.get(BASE_URL)
-        log("Autoentrada: Driver iniciado")
+        log("Metropolitano: Driver iniciado")
+        time.sleep(3)
 
-        # --- SCROLL INFINITO ---
-        log("Autoentrada: Cargando todos los eventos (scroll)...")
-        last_height = driver.execute_script("return document.body.scrollHeight")
+        # --- CARGAR TODOS LOS EVENTOS ---
+        log("Metropolitano: Cargando todos los eventos...")
+        clicks = 0
         while True:
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2.5)
-            new_height = driver.execute_script("return document.body.scrollHeight")
-            if new_height == last_height:
-                break
-            last_height = new_height
-
-        elementos = driver.find_elements(By.CLASS_NAME, "evento")
-        log(f"📊 Autoentrada: {len(elementos)} eventos totales detectados")
-
-        # --- LOOPEO ---
-        eventos_procesados = []
-        for el in elementos:
             try:
-                nombre = el.find_element(By.TAG_NAME, "h2").text
-                info_p = el.find_element(By.TAG_NAME, "p").text
-                lineas = info_p.split('\n')
+                fin = driver.find_element(By.ID, "mensaje-fin-eventos")
+                if fin.is_displayed():
+                    log(f"Metropolitano: Fin de eventos tras {clicks} clicks")
+                    break
 
-                fecha_raw = lineas[0] if len(lineas) > 0 else ""
-                ubi_raw   = lineas[1] if len(lineas) > 1 else ""
+                btn = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.ID, "btn-cargar-mas-eventos"))
+                )
+                driver.execute_script("arguments[0].click();", btn)
+                clicks += 1
+                log(f"Metropolitano: Click #{clicks} en 'Cargar más'")
+                time.sleep(2)
 
-                ubi_norm = normalizar_texto(ubi_raw)
-                es_cordoba = any(p in ubi_norm for p in ['cordoba', 'cba'])
-                es_interior = any(loc in ubi_norm for loc in interior)
+            except Exception as e:
+                log(f"Metropolitano: Loop de carga finalizado — {e}")
+                break
 
-                if not es_cordoba or es_interior:
+        # --- PARSEO ---
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        eventos_html = soup.select('div#eventos-container a.evento')
+        log(f"📊 Metropolitano: {len(eventos_html)} eventos detectados")
+
+        eventos_procesados = []
+        for ev in eventos_html:
+            try:
+                nombre_el = ev.select_one('h3.evento-titulo')
+                fecha_el  = ev.select_one('div.evento-fecha p')
+                lugar_el  = ev.select_one('div.evento-ubicacion p')
+                href      = ev.get('href', BASE_URL)
+
+                nombre    = nombre_el.text.strip() if nombre_el else None
+                fecha_raw = fecha_el.text.strip()  if fecha_el  else ""
+                lugar_raw = lugar_el.text.strip()  if lugar_el  else ""
+
+                if not nombre:
                     continue
 
-                f_inicio, f_termina = procesar_rango_fechas(fecha_raw)
+                comienza, finaliza = parsear_fecha_metropolitano(fecha_raw)
 
-                if not f_inicio:
-                    registrar_rechazo(nombre, ubi_raw, fecha_raw, "Fallo parseo de fecha", "scraper", BASE_URL)
+                if not comienza:
+                    registrar_rechazo(nombre, lugar_raw, fecha_raw, "Sin fecha reconocible", "parseo", href)
                     continue
-
-                partes_ubi = [p.strip() for p in ubi_raw.split(',')]
 
                 eventos_procesados.append({
                     'Eventos':          nombre,
-                    'Lugar':            partes_ubi[0] if partes_ubi else "",
-                    'Comienza':         f_inicio,
-                    'Finaliza':         f_termina,
-                    'Tipo de evento':   "",   # lo completa el clasificador
+                    'Lugar':            lugar_raw,
+                    'Comienza':         comienza,
+                    'Finaliza':         finaliza,
+                    'Tipo de evento':   "",
                     'Detalle':          "",
                     'Alcance':          "",
                     'Costo de entrada': "",
-                    'Fuente':           'Autoentrada',
-                    'Origen':           BASE_URL,
+                    'Fuente':           'Ente Metropolitano',
+                    'Origen':           href,
                     'fecha de carga':   datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 })
 
             except Exception as e:
-                try:
-                    nombre_err = el.find_element(By.TAG_NAME, "h2").text
-                except:
-                    nombre_err = "Desconocido"
-                registrar_rechazo(nombre_err, "", "", f"Error extracción: {str(e)}", "loop", BASE_URL)
+                registrar_rechazo(
+                    ev.select_one('h3.evento-titulo').text.strip() if ev.select_one('h3.evento-titulo') else "Desconocido",
+                    "", "", f"Error extracción: {str(e)}", "loop", BASE_URL
+                )
                 continue
 
-        log(f"📊 Autoentrada: {len(eventos_procesados)} eventos de Córdoba Capital")
+        log(f"📊 Metropolitano: {len(eventos_procesados)} eventos válidos")
 
-        # --- ARMADO Y SUBIDA ---
+        # --- ARMADO, CLASIFICACIÓN Y SUBIDA ---
         if eventos_procesados:
             df_final = pd.DataFrame(eventos_procesados)
             df_final = df_final.astype(str).replace('None', '').replace('nan', '')
-            df_final = df_final.drop_duplicates(subset=['Eventos', 'Comienza'])
+            df_final = df_final.drop_duplicates(subset=['Origen'])
+
+            # Preview local
+            print(f"\n📋 df_final — {len(df_final)} filas x {len(df_final.columns)} columnas")
+            print(df_final.to_string())
 
             # Clasificador
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
-            log(f"🤖 Autoentrada — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
+            log(f"🤖 Metropolitano — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
 
-            subir_a_google_sheets(df_final, 'Autoentrada historico (Auto)', 'sheet1')
+            subir_a_google_sheets(df_final, 'Metropolitano historico (Auto)', 'Hoja 1')
 
             reporte["filas_procesadas"] = len(df_final)
             reporte["estado"] = "Exitoso"
         else:
-            log("❌ Autoentrada: Sin eventos válidos tras el filtrado.")
+            log("❌ Metropolitano: Sin eventos válidos.")
             reporte["estado"] = "Advertencia: Sin datos"
 
-        # Rechazados
         if not df_rechazados.empty:
             subir_a_google_sheets(df_rechazados.astype(str), 'Rechazados', 'Eventos')
 
     except Exception as e:
-        log(f"❌ ERROR CRÍTICO EN AUTOENTRADA: {e}")
+        log(f"❌ ERROR CRÍTICO EN METROPOLITANO: {e}")
         reporte["estado"] = "Fallido"
         reporte["error"] = str(e)
 
@@ -2169,9 +2153,8 @@ def ejecutar_scraper_autoentrada():
 
 # --- LLAMADO (comentar para desactivar) ---
 log('')
-log('AUTOENTRADA')
-ejecutar_scraper_autoentrada()
-
+log('METROPOLITANO')
+ejecutar_scraper_metropolitano()
 #Importante el orden. Marca jerarquía. El primero se mantiene siempre a la hora de comparar duplicados y así...
 dict_fuentes = {
     'Ferias y Congresos': 'Ferias y Congresos (Auto)',
