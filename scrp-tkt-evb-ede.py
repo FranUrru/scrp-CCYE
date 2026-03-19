@@ -2261,8 +2261,8 @@ def ejecutar_scraper_fcefyn():
 
         memoria = cargar_memoria()
         print(f"📁 Contenido memoria: {memoria}")
-        print(f"📁 Último href conocido: {ultimo_href_conocido}")
         ultimo_href_conocido = memoria.get("ultimo_href")
+        print(f"📁 Último href conocido: {ultimo_href_conocido}")
         log(f"FCEFyN: Último href en memoria → {ultimo_href_conocido or 'ninguno (primera ejecución)'}")
 
         driver = iniciar_driver()
