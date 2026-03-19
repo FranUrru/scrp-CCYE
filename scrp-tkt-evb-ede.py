@@ -2178,6 +2178,10 @@ def ejecutar_scraper_fcefyn():
     }
 
     MEMORIA_PATH = os.path.join(os.path.dirname(__file__), "fcefyn_memoria.json")
+    print(f"📁 Ruta memoria: {MEMORIA_PATH}")
+    print(f"📁 Archivo existe: {os.path.exists(MEMORIA_PATH)}")
+    print(f"📁 Contenido memoria: {memoria}")
+    print(f"📁 Último href conocido: {ultimo_href_conocido}")
 
     def cargar_memoria():
         if os.path.exists(MEMORIA_PATH):
