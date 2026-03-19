@@ -2262,6 +2262,8 @@ def ejecutar_scraper_fcefyn():
         LISTA_URL = f"{BASE_URL}/archivo/eventos/en/home"
 
         memoria = cargar_memoria()
+        print(f"📁 Contenido memoria: {memoria}")
+        print(f"📁 Último href conocido: {ultimo_href_conocido}")
         ultimo_href_conocido = memoria.get("ultimo_href")
         log(f"FCEFyN: Último href en memoria → {ultimo_href_conocido or 'ninguno (primera ejecución)'}")
 
