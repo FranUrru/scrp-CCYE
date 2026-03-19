@@ -2307,6 +2307,7 @@ def ejecutar_scraper_fcefyn():
                     if href == ultimo_href_conocido:
                         log(f"FCEFyN: Alcanzado último evento conocido en página {pagina} — deteniendo")
                         detener = True
+                        print(f"  Comparando: {href[:60]}... == {str(ultimo_href_conocido)[:60]}...")
                         break
 
                     comienza, finaliza = parsear_fechas_fcefyn(card)
