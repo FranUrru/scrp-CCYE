@@ -762,7 +762,7 @@ def ejecutar_scraper_ticketek():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 log('TICKETEK')
-ejecutar_scraper_ticketek()
+#ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -1150,7 +1150,7 @@ def ejecutar_scraper_eden():
         return reporte
 log('')
 log('EDÉN')
-ejecutar_scraper_eden()
+#ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1397,7 +1397,7 @@ def ejecutar_scraper_eventbrite():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
     return reporte
 
-intentos_maximos = 3
+intentos_maximos = 0
 resultado_final = None
 log('')
 log('EVENTBRITE')
@@ -1649,7 +1649,7 @@ def ejecutar_scraper_ferias_y_congresos():
 
 # Ejecución
 print("Iniciando Ferias y Congresos...")
-ejecutar_scraper_ferias_y_congresos()
+#ejecutar_scraper_ferias_y_congresos()
 
 
 log('')
@@ -1969,7 +1969,7 @@ def ejecutar_scraper_autoentrada():
 # --- LLAMADO (comentar para desactivar) ---
 log('')
 log('AUTOENTRADA')
-ejecutar_scraper_autoentrada()
+#ejecutar_scraper_autoentrada()
 
 #ENTE METROPOLITANO
 def ejecutar_scraper_metropolitano():
@@ -2154,7 +2154,255 @@ def ejecutar_scraper_metropolitano():
 # --- LLAMADO (comentar para desactivar) ---
 log('')
 log('METROPOLITANO')
-ejecutar_scraper_metropolitano()
+#ejecutar_scraper_metropolitano()
+
+def ejecutar_scraper_fcefyn():
+    import pandas as pd
+    import re
+    import time
+    import json
+    import os
+    from datetime import datetime
+    from bs4 import BeautifulSoup
+    from selenium.webdriver.common.by import By
+
+    driver = None
+    df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link', 'Fecha Scrp'])
+
+    reporte = {
+        "nombre": "FCEFyN",
+        "estado": "Pendiente",
+        "filas_procesadas": 0,
+        "error": None,
+        "inicio": datetime.now().strftime('%H:%M:%S')
+    }
+
+    MEMORIA_PATH = os.path.join(os.path.dirname(__file__), "fcefyn_memoria.json")
+
+    def cargar_memoria():
+        if os.path.exists(MEMORIA_PATH):
+            try:
+                with open(MEMORIA_PATH, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except:
+                pass
+        return {"ultimo_href": None, "ultima_fecha_scrp": None}
+
+    def guardar_memoria(href, fecha_scrp):
+        try:
+            with open(MEMORIA_PATH, "w", encoding="utf-8") as f:
+                json.dump({"ultimo_href": href, "ultima_fecha_scrp": fecha_scrp}, f, ensure_ascii=False, indent=2)
+            log(f"💾 FCEFyN: Memoria guardada — {href}")
+        except Exception as e:
+            log(f"⚠️ FCEFyN: No se pudo guardar memoria — {e}")
+
+    def registrar_rechazo(nombre, loc, fecha, motivo, linea, href):
+        nonlocal df_rechazados
+        nuevo = pd.DataFrame([{
+            'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
+            'Motivo': motivo, 'Linea': str(linea), 'Fuente': 'FCEFyN',
+            'Link': href, 'Fecha Scrp': datetime.now().strftime('%Y-%m-%d')
+        }])
+        df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
+
+    def iso_desde_datetime_attr(time_tag):
+        title = time_tag.get('title', '')
+        meses_map = {
+            "enero": "01", "febrero": "02", "marzo": "03", "abril": "04",
+            "mayo": "05", "junio": "06", "julio": "07", "agosto": "08",
+            "septiembre": "09", "octubre": "10", "noviembre": "11", "diciembre": "12"
+        }
+        try:
+            title_lower = title.lower()
+            match = re.search(
+                r'(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})\s+a\s+las\s+(\d{2}:\d{2})',
+                title_lower
+            )
+            if match:
+                dia, mes_txt, anio, hora = match.groups()
+                mes = meses_map.get(mes_txt)
+                if mes:
+                    return datetime.strptime(
+                        f"{dia.zfill(2)}/{mes}/{anio} {hora}",
+                        "%d/%m/%Y %H:%M"
+                    ).strftime("%Y-%m-%d %H:%M:%S")
+        except:
+            pass
+        return None
+
+    def parsear_fechas_fcefyn(soup_card):
+        times = soup_card.select('div.clock time')
+        if not times:
+            return None, None
+        comienza = iso_desde_datetime_attr(times[0])
+        finaliza = iso_desde_datetime_attr(times[1]) if len(times) > 1 else None
+        if not finaliza:
+            finaliza = comienza
+        return comienza, finaliza
+
+    # --- PATRONES DE FILTRO ---
+    PATRON_EVENTO = (
+        r'colaci[oó]n|'
+        r'sesi[oó]n\s+hcd|'
+        r'posgrados?|'
+        r'defensas?\s+de\s+tesis'
+    )
+    PATRON_VIRTUAL = (
+        r'virtual|online|videoconferencia|conferencia\s+virtual|'
+        r'meet\.google\.com|youtube|v[íi]a\s+meet|meet|zoom|'
+        r'sincr[óo]nica|asincr[óo]nica'
+    )
+
+    try:
+        BASE_URL  = "https://fcefyn.unc.edu.ar"
+        LISTA_URL = f"{BASE_URL}/archivo/eventos/en/home"
+
+        memoria = cargar_memoria()
+        ultimo_href_conocido = memoria.get("ultimo_href")
+        log(f"FCEFyN: Último href en memoria → {ultimo_href_conocido or 'ninguno (primera ejecución)'}")
+
+        driver = iniciar_driver()
+        log("FCEFyN: Driver iniciado")
+
+        eventos_procesados = []
+        pagina = 1
+        detener = False
+        primer_href_nueva_ejecucion = None
+
+        while not detener:
+            url_pagina = f"{LISTA_URL}?page={pagina}"
+            driver.get(url_pagina)
+            time.sleep(2)
+
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
+
+            if soup.find('h1', string=lambda t: t and 'Contenido no encontrado' in t):
+                log(f"FCEFyN: Página {pagina} sin contenido — fin del scraping")
+                break
+
+            cards = soup.select('div.card.event-teaser')
+            if not cards:
+                log(f"FCEFyN: Página {pagina} sin cards — fin del scraping")
+                break
+
+            log(f"FCEFyN: Página {pagina} — {len(cards)} eventos")
+
+            for card in cards:
+                try:
+                    a_tag  = card.select_one('div.card-content a')
+                    href   = BASE_URL + a_tag['href'] if a_tag else None
+                    nombre = card.select_one('h4').text.strip() if card.select_one('h4') else None
+                    lugar  = card.select_one('div.place').text.strip() if card.select_one('div.place') else ""
+
+                    if not nombre or not href:
+                        continue
+
+                    if primer_href_nueva_ejecucion is None:
+                        primer_href_nueva_ejecucion = href
+
+                    if href == ultimo_href_conocido:
+                        log(f"FCEFyN: Alcanzado último evento conocido en página {pagina} — deteniendo")
+                        detener = True
+                        break
+
+                    comienza, finaliza = parsear_fechas_fcefyn(card)
+
+                    if not comienza:
+                        registrar_rechazo(nombre, lugar, "", "Sin fecha parseable", "loop", href)
+                        continue
+
+                    eventos_procesados.append({
+                        'Eventos':          nombre,
+                        'Lugar':            lugar,
+                        'Comienza':         comienza,
+                        'Finaliza':         finaliza,
+                        'Tipo de evento':   "",
+                        'Detalle':          "",
+                        'Alcance':          "",
+                        'Costo de entrada': "",
+                        'Fuente':           'FCEFyN',
+                        'Origen':           href,
+                        'fecha de carga':   datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    })
+
+                except Exception as e:
+                    nombre_err = card.select_one('h4').text.strip() if card.select_one('h4') else "Desconocido"
+                    registrar_rechazo(nombre_err, "", "", f"Error extracción: {str(e)}", "loop", "")
+                    continue
+
+            pagina += 1
+
+        log(f"📊 FCEFyN: {len(eventos_procesados)} eventos recolectados antes de filtros")
+
+        # --- ARMADO ---
+        if eventos_procesados:
+            df_final = pd.DataFrame(eventos_procesados)
+            df_final = df_final.astype(str).replace('None', '').replace('nan', '')
+            df_final = df_final.drop_duplicates(subset=['Origen'])
+
+            # --- FILTRO 1: Por nombre de evento ---
+            mask_evento = df_final['Eventos'].str.contains(PATRON_EVENTO, case=False, na=False, regex=True)
+            rechazados_evento = df_final[mask_evento].copy()
+            rechazados_evento['motivo_rechazo'] = 'Filtro nombre evento'
+            df_final = df_final[~mask_evento].copy()
+            log(f"🗑️ FCEFyN: {len(rechazados_evento)} eventos filtrados por nombre (colación, HCD, posgrado, tesis)")
+
+            # Registrar rechazos de filtro 1
+            for _, row in rechazados_evento.iterrows():
+                registrar_rechazo(row['Eventos'], row['Lugar'], row['Comienza'], 'Filtro nombre evento', 'filtro1', row['Origen'])
+
+            # --- FILTRO 2: Por lugar virtual ---
+            mask_virtual = df_final['Lugar'].str.contains(PATRON_VIRTUAL, case=False, na=False, regex=True)
+            rechazados_virtual = df_final[mask_virtual].copy()
+            df_final = df_final[~mask_virtual].copy()
+            log(f"🗑️ FCEFyN: {len(rechazados_virtual)} eventos filtrados por lugar virtual")
+
+            # Registrar rechazos de filtro 2
+            for _, row in rechazados_virtual.iterrows():
+                registrar_rechazo(row['Eventos'], row['Lugar'], row['Comienza'], 'Filtro lugar virtual', 'filtro2', row['Origen'])
+
+            log(f"✅ FCEFyN: {len(df_final)} eventos limpios tras filtros")
+
+            # Preview local
+            print(f"\n📋 df_final — {len(df_final)} filas x {len(df_final.columns)} columnas")
+            print(df_final.to_string())
+
+            # --- CLASIFICADOR ---
+            df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
+            log(f"🤖 FCEFyN — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
+
+            subir_a_google_sheets(df_final, 'FCEFyN historico (Auto)', 'sheet1')
+
+            if primer_href_nueva_ejecucion:
+                guardar_memoria(primer_href_nueva_ejecucion, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+
+            reporte["filas_procesadas"] = len(df_final)
+            reporte["estado"] = "Exitoso"
+
+        else:
+            log("FCEFyN: Sin eventos nuevos desde la última ejecución.")
+            reporte["estado"] = "Sin novedades"
+
+        # --- RECHAZADOS ---
+        if not df_rechazados.empty:
+            subir_a_google_sheets(df_rechazados.astype(str), 'Rechazados', 'Eventos')
+
+    except Exception as e:
+        log(f"❌ ERROR CRÍTICO EN FCEFYN: {e}")
+        reporte["estado"] = "Fallido"
+        reporte["error"] = str(e)
+
+    finally:
+        if driver: driver.quit()
+        return reporte
+
+
+# --- LLAMADO (comentar para desactivar) ---
+log('')
+log('FCEFYN')
+ejecutar_scraper_fcefyn()
+
+
 #Importante el orden. Marca jerarquía. El primero se mantiene siempre a la hora de comparar duplicados y así...
 dict_fuentes = {
     'Ferias y Congresos': 'Ferias y Congresos (Auto)',
