@@ -2177,7 +2177,9 @@ def ejecutar_scraper_fcefyn():
         "inicio": datetime.now().strftime('%H:%M:%S')
     }
 
-    MEMORIA_PATH = os.path.join(os.path.dirname(__file__), "fcefyn_memoria.json")
+    MEMORIA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memoria")
+    os.makedirs(MEMORIA_DIR, exist_ok=True)  # Crea la carpeta si no existe
+    MEMORIA_PATH = os.path.join(MEMORIA_DIR, "fcefyn_memoria.json")
     print(f"📁 Ruta memoria: {MEMORIA_PATH}")
     print(f"📁 Archivo existe: {os.path.exists(MEMORIA_PATH)}")
 
@@ -2427,7 +2429,9 @@ def ejecutar_scraper_famaf():
         "inicio": datetime.now().strftime('%H:%M:%S')
     }
 
-    MEMORIA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "famaf_memoria.json")
+    MEMORIA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memoria")
+    os.makedirs(MEMORIA_DIR, exist_ok=True)
+    MEMORIA_PATH = os.path.join(MEMORIA_DIR, "famaf_memoria.json")
 
     def cargar_memoria():
         print(f"📁 Intentando leer: {MEMORIA_PATH}")
