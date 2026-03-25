@@ -2354,7 +2354,8 @@ def ejecutar_scraper_fcefyn():
             rechazados_antiguos = df_final[mask_antiguos].copy()
             df_final = df_final[~mask_antiguos].drop(columns=['anio_temp']).copy()
             for _, row in rechazados_antiguos.iterrows():
-
+                registrar_rechazo(row['Eventos'], row['Lugar'], row['Comienza'], f'Evento anterior a {ANIO_MINIMO}', 'filtro_fecha', row['Origen'])
+            log(f"🗑️ FCEFyN: {len(rechazados_antiguos)} eventos filtrados por fecha (anteriores a {ANIO_MINIMO})")
 
             # --- FILTRO 1: Por nombre de evento ---
             mask_evento = df_final['Eventos'].str.contains(PATRON_EVENTO, case=False, na=False, regex=True)
