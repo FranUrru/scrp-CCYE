@@ -2249,7 +2249,6 @@ def ejecutar_scraper_fcefyn():
         r'colaci[oó]n|'
         r'sesi[oó]n\s+hcd|'
         r'posgrados?|'
-        r'defensas?\s+de\s+tesis'
     )
     PATRON_VIRTUAL = (
         r'virtual|online|videoconferencia|conferencia\s+virtual|'
@@ -2346,6 +2345,13 @@ def ejecutar_scraper_fcefyn():
             df_final = pd.DataFrame(eventos_procesados)
             df_final = df_final.astype(str).replace('None', '').replace('nan', '')
             df_final = df_final.drop_duplicates(subset=['Origen'])
+
+            # --- FILTRO 0: Por fecha ---
+            mask_evento = df_final['Comienza']>'31/12/2024'
+            rechazados_evento = df_final[mask_evento].copy()
+            rechazados_evento['motivo_rechazo'] = 'Filtro nombre evento'
+            df_final = df_final[~mask_evento].copy()
+            log(f"🗑️ FCEFyN: {len(rechazados_evento)} eventos filtrados por fecha (Anteriores a 2025)")
 
             # --- FILTRO 1: Por nombre de evento ---
             mask_evento = df_final['Eventos'].str.contains(PATRON_EVENTO, case=False, na=False, regex=True)
