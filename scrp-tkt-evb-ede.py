@@ -2042,17 +2042,17 @@ def ejecutar_scraper_metropolitano():
         BASE_URL = "https://entemetropolitano.gob.ar/agenda-de-eventos/"
         driver = iniciar_driver()
         driver.get(BASE_URL)
-        log("Metropolitano: Driver iniciado")
+        print("Metropolitano: Driver iniciado")
         time.sleep(3)
 
         # --- CARGAR TODOS LOS EVENTOS ---
-        log("Metropolitano: Cargando todos los eventos...")
+        print("Metropolitano: Cargando todos los eventos...")
         clicks = 0
         while True:
             try:
                 fin = driver.find_element(By.ID, "mensaje-fin-eventos")
                 if fin.is_displayed():
-                    log(f"Metropolitano: Fin de eventos tras {clicks} clicks")
+                    print(f"Metropolitano: Fin de eventos tras {clicks} clicks")
                     break
 
                 btn = WebDriverWait(driver, 10).until(
@@ -2060,17 +2060,17 @@ def ejecutar_scraper_metropolitano():
                 )
                 driver.execute_script("arguments[0].click();", btn)
                 clicks += 1
-                log(f"Metropolitano: Click #{clicks} en 'Cargar más'")
+                print(f"Metropolitano: Click #{clicks} en 'Cargar más'")
                 time.sleep(2)
 
             except Exception as e:
-                log(f"Metropolitano: Loop de carga finalizado — {e}")
+                print(f"Metropolitano: Loop de carga finalizado — {e}")
                 break
 
         # --- PARSEO ---
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         eventos_html = soup.select('div#eventos-container a.evento')
-        log(f"📊 Metropolitano: {len(eventos_html)} eventos detectados")
+        print(f"📊 Metropolitano: {len(eventos_html)} eventos detectados")
 
         eventos_procesados = []
         for ev in eventos_html:
@@ -2114,7 +2114,7 @@ def ejecutar_scraper_metropolitano():
                 )
                 continue
 
-        log(f"📊 Metropolitano: {len(eventos_procesados)} eventos válidos")
+        print(f"📊 Metropolitano: {len(eventos_procesados)} eventos válidos")
 
         # --- ARMADO, CLASIFICACIÓN Y SUBIDA ---
         if eventos_procesados:
