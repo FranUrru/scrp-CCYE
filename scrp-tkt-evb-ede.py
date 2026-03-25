@@ -516,7 +516,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
         print("🔴 DIAGNÓSTICO: La variable os.environ no encuentra 'GCP_SERVICE_ACCOUNT_JSON'. Revisa el YAML.")
         return False
     
-    intentos = 3
+    intentos = 0
     while intentos < retries:
         try:
             # --- CONEXIÓN ---
@@ -1397,7 +1397,7 @@ def ejecutar_scraper_eventbrite():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
     return reporte
 
-intentos_maximos = 0
+intentos_maximos = 3
 resultado_final = None
 log('')
 log('EVENTBRITE')
