@@ -2249,6 +2249,7 @@ def ejecutar_scraper_fcefyn():
         r'colaci[oó]n|'
         r'sesi[oó]n\s+hcd|'
         r'posgrados?|'
+        r'defensas?\s+de\s+tesis'
     )
     PATRON_VIRTUAL = (
         r'virtual|online|videoconferencia|conferencia\s+virtual|'
