@@ -1,25 +1,29 @@
 name: Scraper Diario de Eventos
-
 on:
   schedule:
     - cron: '0 10 * * *'
   workflow_dispatch:
-
 env:
-  # Esto elimina el warning de Node.js 20
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true 
-
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
     steps:
       - name: Descargar mi código
-        uses: actions/checkout@v4 # Ya usas v4, está bien.
+        uses: actions/checkout@v4
+
+      - name: Cache memoria scrapers
+        uses: actions/cache@v4
+        with:
+          path: memoria/
+          key: memoria-scrapers-${{ runner.os }}
+          restore-keys: |
+            memoria-scrapers-
 
       - name: Instalar Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12' # Subimos a 3.12 para eliminar el warning de Google
+          python-version: '3.12'
 
       - name: Instalar librerías
         run: |
