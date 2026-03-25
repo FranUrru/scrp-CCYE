@@ -2378,7 +2378,7 @@ def ejecutar_scraper_fcefyn():
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
             log(f"🤖 FCEFyN — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
 
-            subir_a_google_sheets(df_final, 'FCEFyN historico (Auto)', 'sheet1')
+            subir_a_google_sheets(df_final, 'FCEFyN historico (Auto)', 'Hoja 1')
 
             if primer_href_nueva_ejecucion:
                 guardar_memoria(primer_href_nueva_ejecucion, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
@@ -2599,7 +2599,7 @@ def ejecutar_scraper_famaf():
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
             log(f"🤖 FAMAF — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
 
-            subir_a_google_sheets(df_final, 'FAMAF historico (Auto)', 'sheet1')
+            subir_a_google_sheets(df_final, 'FAMAF historico (Auto)', 'Hoja 1')
 
             if primer_href_nueva_ejecucion:
                 guardar_memoria(primer_href_nueva_ejecucion, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
