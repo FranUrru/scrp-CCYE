@@ -2348,11 +2348,13 @@ def ejecutar_scraper_fcefyn():
             df_final = df_final.drop_duplicates(subset=['Origen'])
 
             # --- FILTRO 0: Por fecha ---
-            mask_evento = df_final['Comienza']>'31/12/2024'
-            rechazados_evento = df_final[mask_evento].copy()
-            rechazados_evento['motivo_rechazo'] = 'Filtro nombre evento'
-            df_final = df_final[~mask_evento].copy()
-            log(f"🗑️ FCEFyN: {len(rechazados_evento)} eventos filtrados por fecha (Anteriores a 2025)")
+            ANIO_MINIMO = 2025
+            df_final['anio_temp'] = df_final['Comienza'].str[:4].apply(lambda x: int(x) if x.isdigit() else 0)
+            mask_antiguos = df_final['anio_temp'] < ANIO_MINIMO
+            rechazados_antiguos = df_final[mask_antiguos].copy()
+            df_final = df_final[~mask_antiguos].drop(columns=['anio_temp']).copy()
+            for _, row in rechazados_antiguos.iterrows():
+
 
             # --- FILTRO 1: Por nombre de evento ---
             mask_evento = df_final['Eventos'].str.contains(PATRON_EVENTO, case=False, na=False, regex=True)
