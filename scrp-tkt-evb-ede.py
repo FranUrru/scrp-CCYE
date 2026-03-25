@@ -2429,22 +2429,22 @@ def ejecutar_scraper_famaf():
         "inicio": datetime.now().strftime('%H:%M:%S')
     }
 
+    # --- CONFIGURACIÓN DE FILTROS ---
+    PATRON_ORIGEN_ACADEMICA = r'academica'
+    PATRON_EVENTO_AUTORIDADES = r'autoridades'
+    ANIO_MINIMO = 2025
+
     MEMORIA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memoria")
     os.makedirs(MEMORIA_DIR, exist_ok=True)
     MEMORIA_PATH = os.path.join(MEMORIA_DIR, "famaf_memoria.json")
 
     def cargar_memoria():
-        print(f"📁 Intentando leer: {MEMORIA_PATH}")
         if not os.path.exists(MEMORIA_PATH):
-            print("📁 Archivo no existe — primera ejecución, se escrapeará todo")
             return {"ultimo_href": None, "ultima_fecha_scrp": None}
         try:
             with open(MEMORIA_PATH, "r", encoding="utf-8") as f:
-                contenido = json.load(f)
-                print(f"📁 Memoria leída OK: {contenido}")
-                return contenido
-        except Exception as e:
-            print(f"⚠️ Error leyendo memoria: {e}")
+                return json.load(f)
+        except:
             return {"ultimo_href": None, "ultima_fecha_scrp": None}
 
     def guardar_memoria(href, fecha_scrp):
@@ -2452,9 +2452,8 @@ def ejecutar_scraper_famaf():
             datos = {"ultimo_href": href, "ultima_fecha_scrp": fecha_scrp}
             with open(MEMORIA_PATH, "w", encoding="utf-8") as f:
                 json.dump(datos, f, ensure_ascii=False, indent=2)
-            print(f"💾 Memoria guardada en {MEMORIA_PATH}: {datos}")
         except Exception as e:
-            print(f"⚠️ No se pudo guardar memoria: {e} — path: {MEMORIA_PATH}")
+            print(f"⚠️ No se pudo guardar memoria: {e}")
 
     def registrar_rechazo(nombre, loc, fecha, motivo, linea, href):
         nonlocal df_rechazados
@@ -2466,31 +2465,16 @@ def ejecutar_scraper_famaf():
         df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
 
     def parsear_fechas_famaf(card):
-        """
-        El HTML tiene en card-content dos <time> con atributo datetime en ISO UTC-3.
-        El primero es inicio, el segundo es fin.
-        Como ya viene con -03:00 (hora de Córdoba), usamos directamente.
-        """
         times = card.select('div.card-content div time')
-
         def iso_desde_attr(time_tag):
             try:
                 attr = time_tag.get('datetime', '')
-                # formato: "2026-03-18T14:00:00-03:00"
                 dt = datetime.fromisoformat(attr)
-                # Convertimos a naive eliminando tzinfo (ya es hora local de Córdoba)
                 return dt.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
-            except:
-                return None
-
-        if not times:
-            return None, None
-
+            except: return None
+        if not times: return None, None
         comienza = iso_desde_attr(times[0])
-        finaliza = iso_desde_attr(times[1]) if len(times) > 1 else None
-        if not finaliza:
-            finaliza = comienza
-
+        finaliza = iso_desde_attr(times[1]) if len(times) > 1 else comienza
         return comienza, finaliza
 
     try:
@@ -2499,11 +2483,9 @@ def ejecutar_scraper_famaf():
 
         memoria = cargar_memoria()
         ultimo_href_conocido = memoria.get("ultimo_href", None)
-        log(f"FAMAF: Último href en memoria → {ultimo_href_conocido or 'ninguno (primera ejecución)'}")
+        log(f"FAMAF: Último href en memoria → {ultimo_href_conocido or 'ninguno'}")
 
         driver = iniciar_driver()
-        log("FAMAF: Driver iniciado")
-
         eventos_procesados = []
         pagina = 1
         detener = False
@@ -2513,92 +2495,81 @@ def ejecutar_scraper_famaf():
             url_pagina = f"{LISTA_URL}?page={pagina}"
             driver.get(url_pagina)
             time.sleep(2)
-
             soup = BeautifulSoup(driver.page_source, 'html.parser')
 
-            # Condición de parada: página no encontrada
-            if soup.find('h1', string=lambda t: t and 'No encontrado' in t):
-                log(f"FAMAF: Página {pagina} no encontrada — fin del scraping")
-                break
-
+            if soup.find('h1', string=lambda t: t and 'No encontrado' in t): break
             cards = soup.select('div.card.evento')
-            if not cards:
-                log(f"FAMAF: Página {pagina} sin cards — fin del scraping")
-                break
-
-            log(f"FAMAF: Página {pagina} — {len(cards)} eventos")
+            if not cards: break
 
             for card in cards:
                 try:
-                    a_tag  = card.select_one('div.card-image a')
-                    href   = BASE_URL + a_tag['href'] if a_tag else None
+                    a_tag = card.select_one('div.card-image a')
+                    href = BASE_URL + a_tag['href'] if a_tag else None
                     nombre_el = card.select_one('h3.title a')
                     nombre = nombre_el.text.strip() if nombre_el else None
 
-                    # Lugar: el div con fa-location-dot, tomamos el texto directo
                     lugar = ""
                     for div in card.select('div.card-content div'):
                         if div.select_one('svg.fa-location-dot'):
-                            # Texto del div excluyendo el SVG
                             lugar = div.get_text(strip=True)
                             break
 
-                    if not nombre or not href:
-                        continue
-
-                    # Guardar el primero de la primera página (el más reciente)
-                    if primer_href_nueva_ejecucion is None:
-                        primer_href_nueva_ejecucion = href
-
-                    # Parar si llegamos al último conocido
+                    if not nombre or not href: continue
+                    if primer_href_nueva_ejecucion is None: primer_href_nueva_ejecucion = href
                     if ultimo_href_conocido and href == ultimo_href_conocido:
-                        log(f"FAMAF: Alcanzado último evento conocido en página {pagina} — deteniendo")
                         detener = True
                         break
 
                     comienza, finaliza = parsear_fechas_famaf(card)
-
                     if not comienza:
                         registrar_rechazo(nombre, lugar, "", "Sin fecha parseable", "loop", href)
                         continue
 
                     eventos_procesados.append({
-                        'Eventos':          nombre,
-                        'Lugar':            lugar,
-                        'Comienza':         comienza,
-                        'Finaliza':         finaliza,
-                        'Tipo de evento':   "",
-                        'Detalle':          "",
-                        'Alcance':          "",
-                        'Costo de entrada': "",
-                        'Fuente':           'FAMAF',
-                        'Origen':           href,
-                        'fecha de carga':   datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        'Eventos': nombre, 'Lugar': lugar, 'Comienza': comienza,
+                        'Finaliza': finaliza, 'Tipo de evento': "", 'Detalle': "",
+                        'Alcance': "", 'Costo de entrada': "", 'Fuente': 'FAMAF',
+                        'Origen': href, 'fecha de carga': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     })
-
                 except Exception as e:
-                    nombre_err = card.select_one('h3.title a').text.strip() if card.select_one('h3.title a') else "Desconocido"
-                    registrar_rechazo(nombre_err, "", "", f"Error extracción: {str(e)}", "loop", "")
-                    continue
-
+                    registrar_rechazo("Error", "", "", str(e), "loop", "")
             pagina += 1
 
-        log(f"📊 FAMAF: {len(eventos_procesados)} eventos recolectados")
+        log(f"📊 FAMAF: {len(eventos_procesados)} eventos recolectados antes de filtros")
 
-        # --- ARMADO Y SUBIDA ---
         if eventos_procesados:
             df_final = pd.DataFrame(eventos_procesados)
             df_final = df_final.astype(str).replace('None', '').replace('nan', '')
             df_final = df_final.drop_duplicates(subset=['Origen'])
 
-            # Preview local
-            print(f"\n📋 df_final — {len(df_final)} filas x {len(df_final.columns)} columnas")
-            print(df_final.to_string())
+            # --- FILTRO 1: Por Origen (contiene 'academica') ---
+            mask_academica = df_final['Origen'].str.contains(PATRON_ORIGEN_ACADEMICA, case=False, na=False)
+            rechazados_academica = df_final[mask_academica].copy()
+            df_final = df_final[~mask_academica].copy()
+            for _, row in rechazados_academica.iterrows():
+                registrar_rechazo(row['Eventos'], row['Lugar'], row['Comienza'], 'Filtro Origen Académica', 'filtro_url', row['Origen'])
 
-            # Clasificador
+            # --- FILTRO 2: Por Eventos (contiene 'autoridades') ---
+            mask_autoridades = df_final['Eventos'].str.contains(PATRON_EVENTO_AUTORIDADES, case=False, na=False)
+            rechazados_autoridades = df_final[mask_autoridades].copy()
+            df_final = df_final[~mask_autoridades].copy()
+            for _, row in rechazados_autoridades.iterrows():
+                registrar_rechazo(row['Eventos'], row['Lugar'], row['Comienza'], 'Filtro Palabra Autoridades', 'filtro_nombre', row['Origen'])
+
+            # --- FILTRO 3: Por Año (mínimo 2025) ---
+            # Comienza tiene formato 'YYYY-MM-DD HH:MM:SS'
+            df_final['anio_temp'] = df_final['Comienza'].str[:4].apply(lambda x: int(x) if x.isdigit() else 0)
+            mask_antiguos = df_final['anio_temp'] < ANIO_MINIMO
+            rechazados_antiguos = df_final[mask_antiguos].copy()
+            df_final = df_final[~mask_antiguos].drop(columns=['anio_temp']).copy()
+            
+            for _, row in rechazados_antiguos.iterrows():
+                registrar_rechazo(row['Eventos'], row['Lugar'], row['Comienza'], f'Evento anterior a {ANIO_MINIMO}', 'filtro_fecha', row['Origen'])
+
+            log(f"✅ FAMAF: {len(df_final)} eventos limpios tras filtros")
+
+            # Clasificador y subida
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
-            log(f"🤖 FAMAF — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
-
             subir_a_google_sheets(df_final, 'FAMAF historico (Auto)', 'Hoja 1')
 
             if primer_href_nueva_ejecucion:
@@ -2606,9 +2577,7 @@ def ejecutar_scraper_famaf():
 
             reporte["filas_procesadas"] = len(df_final)
             reporte["estado"] = "Exitoso"
-
         else:
-            log("FAMAF: Sin eventos nuevos desde la última ejecución.")
             reporte["estado"] = "Sin novedades"
 
         if not df_rechazados.empty:
@@ -2618,7 +2587,6 @@ def ejecutar_scraper_famaf():
         log(f"❌ ERROR CRÍTICO EN FAMAF: {e}")
         reporte["estado"] = "Fallido"
         reporte["error"] = str(e)
-
     finally:
         if driver: driver.quit()
         return reporte
