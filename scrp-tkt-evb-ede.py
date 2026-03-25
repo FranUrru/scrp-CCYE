@@ -2265,10 +2265,10 @@ def ejecutar_scraper_fcefyn():
         print(f"📁 Contenido memoria: {memoria}")
         ultimo_href_conocido = memoria.get("ultimo_href")
         print(f"📁 Último href conocido: {ultimo_href_conocido}")
-        log(f"FCEFyN: Último href en memoria → {ultimo_href_conocido or 'ninguno (primera ejecución)'}")
+        print(f"FCEFyN: Último href en memoria → {ultimo_href_conocido or 'ninguno (primera ejecución)'}")
 
         driver = iniciar_driver()
-        log("FCEFyN: Driver iniciado")
+        print("FCEFyN: Driver iniciado")
 
         eventos_procesados = []
         pagina = 1
@@ -2283,15 +2283,15 @@ def ejecutar_scraper_fcefyn():
             soup = BeautifulSoup(driver.page_source, 'html.parser')
 
             if soup.find('h1', string=lambda t: t and 'Contenido no encontrado' in t):
-                log(f"FCEFyN: Página {pagina} sin contenido — fin del scraping")
+                print(f"FCEFyN: Página {pagina} sin contenido — fin del scraping")
                 break
 
             cards = soup.select('div.card.event-teaser')
             if not cards:
-                log(f"FCEFyN: Página {pagina} sin cards — fin del scraping")
+                print(f"FCEFyN: Página {pagina} sin cards — fin del scraping")
                 break
 
-            log(f"FCEFyN: Página {pagina} — {len(cards)} eventos")
+            print(f"FCEFyN: Página {pagina} — {len(cards)} eventos")
 
             for card in cards:
                 try:
@@ -2307,7 +2307,7 @@ def ejecutar_scraper_fcefyn():
                         primer_href_nueva_ejecucion = href
 
                     if href == ultimo_href_conocido:
-                        log(f"FCEFyN: Alcanzado último evento conocido en página {pagina} — deteniendo")
+                        print(f"FCEFyN: Alcanzado último evento conocido en página {pagina} — deteniendo")
                         detener = True
                         print(f"  Comparando: {href[:60]}... == {str(ultimo_href_conocido)[:60]}...")
                         break
@@ -2339,7 +2339,7 @@ def ejecutar_scraper_fcefyn():
 
             pagina += 1
 
-        log(f"📊 FCEFyN: {len(eventos_procesados)} eventos recolectados antes de filtros")
+        print(f"📊 FCEFyN: {len(eventos_procesados)} eventos recolectados antes de filtros")
 
         # --- ARMADO ---
         if eventos_procesados:
@@ -2362,7 +2362,7 @@ def ejecutar_scraper_fcefyn():
             rechazados_evento = df_final[mask_evento].copy()
             rechazados_evento['motivo_rechazo'] = 'Filtro nombre evento'
             df_final = df_final[~mask_evento].copy()
-            log(f"🗑️ FCEFyN: {len(rechazados_evento)} eventos filtrados por nombre (colación, HCD, posgrado, tesis)")
+            print(f"🗑️ FCEFyN: {len(rechazados_evento)} eventos filtrados por nombre (colación, HCD, posgrado, tesis)")
 
             # Registrar rechazos de filtro 1
             for _, row in rechazados_evento.iterrows():
@@ -2372,13 +2372,13 @@ def ejecutar_scraper_fcefyn():
             mask_virtual = df_final['Lugar'].str.contains(PATRON_VIRTUAL, case=False, na=False, regex=True)
             rechazados_virtual = df_final[mask_virtual].copy()
             df_final = df_final[~mask_virtual].copy()
-            log(f"🗑️ FCEFyN: {len(rechazados_virtual)} eventos filtrados por lugar virtual")
+            print(f"🗑️ FCEFyN: {len(rechazados_virtual)} eventos filtrados por lugar virtual")
 
             # Registrar rechazos de filtro 2
             for _, row in rechazados_virtual.iterrows():
                 registrar_rechazo(row['Eventos'], row['Lugar'], row['Comienza'], 'Filtro lugar virtual', 'filtro2', row['Origen'])
 
-            log(f"✅ FCEFyN: {len(df_final)} eventos limpios tras filtros")
+            print(f"✅ FCEFyN: {len(df_final)} eventos limpios tras filtros")
 
             # Preview local
             print(f"\n📋 df_final — {len(df_final)} filas x {len(df_final.columns)} columnas")
@@ -2493,7 +2493,7 @@ def ejecutar_scraper_famaf():
 
         memoria = cargar_memoria()
         ultimo_href_conocido = memoria.get("ultimo_href", None)
-        log(f"FAMAF: Último href en memoria → {ultimo_href_conocido or 'ninguno'}")
+        print(f"FAMAF: Último href en memoria → {ultimo_href_conocido or 'ninguno'}")
 
         driver = iniciar_driver()
         eventos_procesados = []
@@ -2545,7 +2545,7 @@ def ejecutar_scraper_famaf():
                     registrar_rechazo("Error", "", "", str(e), "loop", "")
             pagina += 1
 
-        log(f"📊 FAMAF: {len(eventos_procesados)} eventos recolectados antes de filtros")
+        print(f"📊 FAMAF: {len(eventos_procesados)} eventos recolectados antes de filtros")
 
         if eventos_procesados:
             df_final = pd.DataFrame(eventos_procesados)
@@ -2576,7 +2576,7 @@ def ejecutar_scraper_famaf():
             for _, row in rechazados_antiguos.iterrows():
                 registrar_rechazo(row['Eventos'], row['Lugar'], row['Comienza'], f'Evento anterior a {ANIO_MINIMO}', 'filtro_fecha', row['Origen'])
 
-            log(f"✅ FAMAF: {len(df_final)} eventos limpios tras filtros")
+            print(f"✅ FAMAF: {len(df_final)} eventos limpios tras filtros")
 
             # Clasificador y subida
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
