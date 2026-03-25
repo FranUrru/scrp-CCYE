@@ -762,7 +762,7 @@ def ejecutar_scraper_ticketek():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 log('TICKETEK')
-ejecutar_scraper_ticketek()
+#ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -1150,7 +1150,7 @@ def ejecutar_scraper_eden():
         return reporte
 log('')
 log('EDÉN')
-ejecutar_scraper_eden()
+#ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1397,7 +1397,7 @@ def ejecutar_scraper_eventbrite():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
     return reporte
 
-intentos_maximos = 3
+intentos_maximos = 0
 resultado_final = None
 log('')
 log('EVENTBRITE')
@@ -1649,7 +1649,7 @@ def ejecutar_scraper_ferias_y_congresos():
 
 # Ejecución
 print("Iniciando Ferias y Congresos...")
-ejecutar_scraper_ferias_y_congresos()
+#ejecutar_scraper_ferias_y_congresos()
 
 
 log('')
@@ -1807,7 +1807,7 @@ def ejecutar_scraper_turismo_cba():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 
-ejecutar_scraper_turismo_cba()
+#ejecutar_scraper_turismo_cba()
 def ejecutar_scraper_autoentrada():
     import pandas as pd
     import time
@@ -1969,7 +1969,7 @@ def ejecutar_scraper_autoentrada():
 # --- LLAMADO (comentar para desactivar) ---
 log('')
 log('AUTOENTRADA')
-ejecutar_scraper_autoentrada()
+#ejecutar_scraper_autoentrada()
 
 #ENTE METROPOLITANO
 def ejecutar_scraper_metropolitano():
@@ -2154,7 +2154,7 @@ def ejecutar_scraper_metropolitano():
 # --- LLAMADO (comentar para desactivar) ---
 log('')
 log('METROPOLITANO')
-ejecutar_scraper_metropolitano()
+#ejecutar_scraper_metropolitano()
 
 def ejecutar_scraper_fcefyn():
     import pandas as pd
@@ -2405,7 +2405,225 @@ def ejecutar_scraper_fcefyn():
 # --- LLAMADO (comentar para desactivar) ---
 log('')
 log('FCEFYN')
-#ejecutar_scraper_fcefyn()
+ejecutar_scraper_fcefyn()
+
+def ejecutar_scraper_famaf():
+    import pandas as pd
+    import re
+    import time
+    import json
+    import os
+    from datetime import datetime
+    from bs4 import BeautifulSoup
+
+    driver = None
+    df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link', 'Fecha Scrp'])
+
+    reporte = {
+        "nombre": "FAMAF",
+        "estado": "Pendiente",
+        "filas_procesadas": 0,
+        "error": None,
+        "inicio": datetime.now().strftime('%H:%M:%S')
+    }
+
+    MEMORIA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "famaf_memoria.json")
+
+    def cargar_memoria():
+        print(f"📁 Intentando leer: {MEMORIA_PATH}")
+        if not os.path.exists(MEMORIA_PATH):
+            print("📁 Archivo no existe — primera ejecución, se escrapeará todo")
+            return {"ultimo_href": None, "ultima_fecha_scrp": None}
+        try:
+            with open(MEMORIA_PATH, "r", encoding="utf-8") as f:
+                contenido = json.load(f)
+                print(f"📁 Memoria leída OK: {contenido}")
+                return contenido
+        except Exception as e:
+            print(f"⚠️ Error leyendo memoria: {e}")
+            return {"ultimo_href": None, "ultima_fecha_scrp": None}
+
+    def guardar_memoria(href, fecha_scrp):
+        try:
+            datos = {"ultimo_href": href, "ultima_fecha_scrp": fecha_scrp}
+            with open(MEMORIA_PATH, "w", encoding="utf-8") as f:
+                json.dump(datos, f, ensure_ascii=False, indent=2)
+            print(f"💾 Memoria guardada en {MEMORIA_PATH}: {datos}")
+        except Exception as e:
+            print(f"⚠️ No se pudo guardar memoria: {e} — path: {MEMORIA_PATH}")
+
+    def registrar_rechazo(nombre, loc, fecha, motivo, linea, href):
+        nonlocal df_rechazados
+        nuevo = pd.DataFrame([{
+            'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
+            'Motivo': motivo, 'Linea': str(linea), 'Fuente': 'FAMAF',
+            'Link': href, 'Fecha Scrp': datetime.now().strftime('%Y-%m-%d')
+        }])
+        df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
+
+    def parsear_fechas_famaf(card):
+        """
+        El HTML tiene en card-content dos <time> con atributo datetime en ISO UTC-3.
+        El primero es inicio, el segundo es fin.
+        Como ya viene con -03:00 (hora de Córdoba), usamos directamente.
+        """
+        times = card.select('div.card-content div time')
+
+        def iso_desde_attr(time_tag):
+            try:
+                attr = time_tag.get('datetime', '')
+                # formato: "2026-03-18T14:00:00-03:00"
+                dt = datetime.fromisoformat(attr)
+                # Convertimos a naive eliminando tzinfo (ya es hora local de Córdoba)
+                return dt.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+            except:
+                return None
+
+        if not times:
+            return None, None
+
+        comienza = iso_desde_attr(times[0])
+        finaliza = iso_desde_attr(times[1]) if len(times) > 1 else None
+        if not finaliza:
+            finaliza = comienza
+
+        return comienza, finaliza
+
+    try:
+        BASE_URL  = "https://famaf.unc.edu.ar"
+        LISTA_URL = f"{BASE_URL}/archivo/eventos"
+
+        memoria = cargar_memoria()
+        ultimo_href_conocido = memoria.get("ultimo_href", None)
+        log(f"FAMAF: Último href en memoria → {ultimo_href_conocido or 'ninguno (primera ejecución)'}")
+
+        driver = iniciar_driver()
+        log("FAMAF: Driver iniciado")
+
+        eventos_procesados = []
+        pagina = 1
+        detener = False
+        primer_href_nueva_ejecucion = None
+
+        while not detener:
+            url_pagina = f"{LISTA_URL}?page={pagina}"
+            driver.get(url_pagina)
+            time.sleep(2)
+
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
+
+            # Condición de parada: página no encontrada
+            if soup.find('h1', string=lambda t: t and 'No encontrado' in t):
+                log(f"FAMAF: Página {pagina} no encontrada — fin del scraping")
+                break
+
+            cards = soup.select('div.card.evento')
+            if not cards:
+                log(f"FAMAF: Página {pagina} sin cards — fin del scraping")
+                break
+
+            log(f"FAMAF: Página {pagina} — {len(cards)} eventos")
+
+            for card in cards:
+                try:
+                    a_tag  = card.select_one('div.card-image a')
+                    href   = BASE_URL + a_tag['href'] if a_tag else None
+                    nombre_el = card.select_one('h3.title a')
+                    nombre = nombre_el.text.strip() if nombre_el else None
+
+                    # Lugar: el div con fa-location-dot, tomamos el texto directo
+                    lugar = ""
+                    for div in card.select('div.card-content div'):
+                        if div.select_one('svg.fa-location-dot'):
+                            # Texto del div excluyendo el SVG
+                            lugar = div.get_text(strip=True)
+                            break
+
+                    if not nombre or not href:
+                        continue
+
+                    # Guardar el primero de la primera página (el más reciente)
+                    if primer_href_nueva_ejecucion is None:
+                        primer_href_nueva_ejecucion = href
+
+                    # Parar si llegamos al último conocido
+                    if ultimo_href_conocido and href == ultimo_href_conocido:
+                        log(f"FAMAF: Alcanzado último evento conocido en página {pagina} — deteniendo")
+                        detener = True
+                        break
+
+                    comienza, finaliza = parsear_fechas_famaf(card)
+
+                    if not comienza:
+                        registrar_rechazo(nombre, lugar, "", "Sin fecha parseable", "loop", href)
+                        continue
+
+                    eventos_procesados.append({
+                        'Eventos':          nombre,
+                        'Lugar':            lugar,
+                        'Comienza':         comienza,
+                        'Finaliza':         finaliza,
+                        'Tipo de evento':   "",
+                        'Detalle':          "",
+                        'Alcance':          "",
+                        'Costo de entrada': "",
+                        'Fuente':           'FAMAF',
+                        'Origen':           href,
+                        'fecha de carga':   datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    })
+
+                except Exception as e:
+                    nombre_err = card.select_one('h3.title a').text.strip() if card.select_one('h3.title a') else "Desconocido"
+                    registrar_rechazo(nombre_err, "", "", f"Error extracción: {str(e)}", "loop", "")
+                    continue
+
+            pagina += 1
+
+        log(f"📊 FAMAF: {len(eventos_procesados)} eventos recolectados")
+
+        # --- ARMADO Y SUBIDA ---
+        if eventos_procesados:
+            df_final = pd.DataFrame(eventos_procesados)
+            df_final = df_final.astype(str).replace('None', '').replace('nan', '')
+            df_final = df_final.drop_duplicates(subset=['Origen'])
+
+            # Preview local
+            print(f"\n📋 df_final — {len(df_final)} filas x {len(df_final.columns)} columnas")
+            print(df_final.to_string())
+
+            # Clasificador
+            df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
+            log(f"🤖 FAMAF — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
+
+            subir_a_google_sheets(df_final, 'FAMAF historico (Auto)', 'sheet1')
+
+            if primer_href_nueva_ejecucion:
+                guardar_memoria(primer_href_nueva_ejecucion, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+
+            reporte["filas_procesadas"] = len(df_final)
+            reporte["estado"] = "Exitoso"
+
+        else:
+            log("FAMAF: Sin eventos nuevos desde la última ejecución.")
+            reporte["estado"] = "Sin novedades"
+
+        if not df_rechazados.empty:
+            subir_a_google_sheets(df_rechazados.astype(str), 'Rechazados', 'Eventos')
+
+    except Exception as e:
+        log(f"❌ ERROR CRÍTICO EN FAMAF: {e}")
+        reporte["estado"] = "Fallido"
+        reporte["error"] = str(e)
+
+    finally:
+        if driver: driver.quit()
+        return reporte
+
+
+# --- LLAMADO (comentar para desactivar) ---
+log('')
+log('FAMAF')
+ejecutar_scraper_famaf()
 
 
 #Importante el orden. Marca jerarquía. El primero se mantiene siempre a la hora de comparar duplicados y así...
