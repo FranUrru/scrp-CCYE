@@ -2710,58 +2710,67 @@ def procesar_duplicados_y_normalizar():
         except Exception as e:
             print(f"    ❌ Error borrando en '{nombre_tabla}': {e}")
 
-    def normalizar_lugar_en_sheet(nombre_tabla, nombre_hoja, origen_link, lugar_normalizado):
-        import os, json, gspread
+    def normalizar_lugar_en_sheet(nombre_tabla, nombre_hoja, origen_link, lugar_normalizado, max_reintentos=4, cooldown_base=65):
+        import os, json, time, gspread
         from google.oauth2 import service_account
-
+    
         secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
         if not secreto_json:
             print(f"    ❌ No se encontró GCP_SERVICE_ACCOUNT_JSON")
             return
-
-        try:
-            info_claves = json.loads(secreto_json)
-            creds = service_account.Credentials.from_service_account_info(
-                info_claves, scopes=[
-                    "https://www.googleapis.com/auth/spreadsheets",
-                    "https://www.googleapis.com/auth/drive"
-                ]
-            )
-            client = gspread.authorize(creds)
-            sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
-
-            data = sheet.get_all_values()
-            if len(data) <= 1:
-                print(f"    ⚠️ Hoja '{nombre_tabla}' vacía.")
-                return
-
-            headers = data[0]
-
-            columnas_lugar = ['Lugar', 'lugar', 'Location', 'Locacion', 'Locación']
-            col_lugar = next((c for c in columnas_lugar if c in headers), None)
-            if not col_lugar:
-                print(f"    ❌ No se encontró columna 'Lugar' en '{nombre_tabla}'")
-                return
-            col_lugar_idx = headers.index(col_lugar) + 1  # gspread base 1
-
-            columnas_posibles = ['Origen', 'href', 'Link', 'URL']
-            col_id = next((c for c in columnas_posibles if c in headers), None)
-            if not col_id:
-                print(f"    ❌ No se encontró columna de ID en '{nombre_tabla}'")
-                return
-
-            df_temp = pd.DataFrame(data[1:], columns=headers)
-            match_idx = df_temp.index[df_temp[col_id].astype(str) == str(origen_link)].tolist()
-
-            if match_idx:
-                fila_sheet = match_idx[0] + 2  # +1 header, +1 base 1
-                sheet.update_cell(fila_sheet, col_lugar_idx, lugar_normalizado)
-                print(f"    ✏️ Lugar actualizado en '{nombre_tabla}' fila {fila_sheet}: '{lugar_normalizado}'")
-            else:
-                print(f"    ⚠️ Link no encontrado en '{nombre_tabla}': {origen_link}")
-
-        except Exception as e:
-            print(f"    ❌ Error normalizando lugar en '{nombre_tabla}': {e}")
+    
+        for intento in range(1, max_reintentos + 1):
+            try:
+                info_claves = json.loads(secreto_json)
+                creds = service_account.Credentials.from_service_account_info(
+                    info_claves, scopes=[
+                        "https://www.googleapis.com/auth/spreadsheets",
+                        "https://www.googleapis.com/auth/drive"
+                    ]
+                )
+                client = gspread.authorize(creds)
+                sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
+    
+                data = sheet.get_all_values()
+                if len(data) <= 1:
+                    print(f"    ⚠️ Hoja '{nombre_tabla}' vacía.")
+                    return
+    
+                headers = data[0]
+    
+                columnas_lugar = ['Lugar', 'lugar', 'Location', 'Locacion', 'Locación']
+                col_lugar = next((c for c in columnas_lugar if c in headers), None)
+                if not col_lugar:
+                    print(f"    ❌ No se encontró columna 'Lugar' en '{nombre_tabla}'")
+                    return
+                col_lugar_idx = headers.index(col_lugar) + 1
+    
+                columnas_posibles = ['Origen', 'href', 'Link', 'URL']
+                col_id = next((c for c in columnas_posibles if c in headers), None)
+                if not col_id:
+                    print(f"    ❌ No se encontró columna de ID en '{nombre_tabla}'")
+                    return
+    
+                df_temp = pd.DataFrame(data[1:], columns=headers)
+                match_idx = df_temp.index[df_temp[col_id].astype(str) == str(origen_link)].tolist()
+    
+                if match_idx:
+                    fila_sheet = match_idx[0] + 2
+                    sheet.update_cell(fila_sheet, col_lugar_idx, lugar_normalizado)
+                    print(f"    ✏️ Lugar actualizado en '{nombre_tabla}' fila {fila_sheet}: '{lugar_normalizado}'")
+                else:
+                    print(f"    ⚠️ Link no encontrado en '{nombre_tabla}': {origen_link}")
+                return  # ← éxito, salir del loop de reintentos
+    
+            except Exception as e:
+                es_429 = '429' in str(e) or 'Quota exceeded' in str(e)
+                if es_429 and intento < max_reintentos:
+                    espera = cooldown_base * intento  # 65s, 130s, 195s...
+                    print(f"    ⏳ Rate limit (429) en '{nombre_tabla}'. Esperando {espera}s antes del intento {intento+1}/{max_reintentos}...")
+                    time.sleep(espera)
+                else:
+                    print(f"    ❌ Error normalizando lugar en '{nombre_tabla}': {e}")
+                    return
 
     # --- CUERPO PRINCIPAL ---
     try:
@@ -2821,52 +2830,48 @@ def procesar_duplicados_y_normalizar():
         print(f"  ✅ Filtro blacklist completado: {len(indices_a_eliminar)} eventos eliminados.")
         df_principal = df_principal.drop(indices_a_eliminar).reset_index(drop=True)
         print(f"  📋 Eventos restantes tras filtro: {len(df_principal)}")
-
+            
         # --- 1. NORMALIZACIÓN DE LUGARES ---
         print("\n📍 Iniciando normalización de lugares...")
         df_equiv = obtener_df_de_sheets("Equiv Lugares", "Hoja 1")
         mapeo_lugares = {}
+        valores_ya_normalizados = set()  # ← NUEVO: set con valores que YA son el resultado final
+        
         if not df_equiv.empty:
             mapeo_lugares = {
                 str(k).lower().strip(): str(v).strip()
                 for k, v in zip(df_equiv.iloc[:, 0], df_equiv.iloc[:, 1])
             }
+            # Construir set de valores normalizados (columna destino, col índice 1)
+            # Si "Normalizado" es una columna específica, usar: df_equiv['Normalizado']
+            # Si es simplemente la segunda columna:
+            valores_ya_normalizados = {str(v).lower().strip() for v in df_equiv.iloc[:, 1]}
             print(f"  📖 Tabla de equivalencias cargada: {len(mapeo_lugares)} entradas.")
+            print(f"  📖 Valores ya normalizados conocidos: {len(valores_ya_normalizados)}")
         else:
             print("  ⚠️ Tabla de equivalencias vacía o no encontrada.")
-
-        lugares_no_encontrados = []
-
-            
-# --- 1. NORMALIZACIÓN DE LUGARES ---
-        print("\n📍 Iniciando normalización de lugares...")
-        df_equiv = obtener_df_de_sheets("Equiv Lugares", "Hoja 1")
-        mapeo_lugares = {}
-        if not df_equiv.empty:
-            mapeo_lugares = {
-                str(k).lower().strip(): str(v).strip()
-                for k, v in zip(df_equiv.iloc[:, 0], df_equiv.iloc[:, 1])
-            }
-            print(f"  📖 Tabla de equivalencias cargada: {len(mapeo_lugares)} entradas.")
-        else:
-            print("  ⚠️ Tabla de equivalencias vacía o no encontrada.")
-
+        
         lugares_no_encontrados = []
         lugares_normalizados = 0
-
+        lugares_ya_ok = 0  # ← NUEVO: contador de los que se saltean
+        
         for idx, row in df_principal.iterrows():
             lugar_raw = str(row.get('Lugar', ''))
             lugar_key = lugar_raw.lower().strip()
-
+        
+            # ← NUEVO: Si el valor actual ya ES un valor normalizado, saltearlo
+            if lugar_key in valores_ya_normalizados:
+                lugares_ya_ok += 1
+                # Igual actualizamos Lugar_Norm en el df para la detección de duplicados
+                # (el valor ya está bien, no hay que escribir nada en Sheets)
+                continue
+        
             if lugar_key in mapeo_lugares:
                 lugar_norm = mapeo_lugares[lugar_key]
-
-                # Solo actualizar si el valor cambió
+        
                 if lugar_norm != lugar_raw:
-                    # Actualizar en df_principal para que la detección de duplicados use el valor correcto
                     df_principal.at[idx, 'Lugar'] = lugar_norm
-
-                    # Actualizar en la hoja fuente correspondiente
+        
                     tabla_origen = dict_fuentes.get(row.get('Fuente'))
                     if tabla_origen:
                         print(f"  ✏️ Normalizando '{lugar_raw}' → '{lugar_norm}' en {tabla_origen}")
@@ -2875,11 +2880,11 @@ def procesar_duplicados_y_normalizar():
             else:
                 if lugar_key not in lugares_no_encontrados:
                     lugares_no_encontrados.append(lugar_key)
-
-        # Usar Lugar directamente (ya normalizado en el df)
+        
         df_principal['Lugar_Norm'] = df_principal['Lugar']
-
+        
         print(f"  ✅ Normalización completada: {lugares_normalizados} lugares actualizados en sheets.")
+        print(f"  ⏭️ Lugares ya normalizados (salteados): {lugares_ya_ok}")
         print(f"  ⚠️ Lugares NO encontrados en tabla de equivalencias: {len(lugares_no_encontrados)}")
         if lugares_no_encontrados:
             print(f"  📝 Detalle lugares no encontrados:")
