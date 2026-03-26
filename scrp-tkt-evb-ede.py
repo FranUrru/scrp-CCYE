@@ -2641,210 +2641,210 @@ def procesar_duplicados_y_normalizar():
         r'neuqu[eé]n'
     ]
     def obtener_df_de_sheets(nombre_tabla, nombre_hoja):
-    import os, json, gspread
-    from google.oauth2 import service_account
-    secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
-    if not secreto_json:
-        print(f"  ❌ No se encontró la variable de entorno GCP_SERVICE_ACCOUNT_JSON")
-        return pd.DataFrame()
-    try:
-        info_claves = json.loads(secreto_json)
-        creds = service_account.Credentials.from_service_account_info(
-            info_claves, scopes=[
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive"
-            ]
-        )
-        client = gspread.authorize(creds)
-        sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
-        data = sheet.get_all_values()
-        if len(data) > 1:
-            df = pd.DataFrame(data[1:], columns=data[0])
-            print(f"  📗 Sheets OK: '{nombre_tabla}' / '{nombre_hoja}' → {len(df)} filas")
-            return df
-        else:
-            print(f"  ⚠️ Hoja vacía o sin datos: '{nombre_tabla}' / '{nombre_hoja}'")
+        import os, json, gspread
+        from google.oauth2 import service_account
+        secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
+        if not secreto_json:
+            print(f"  ❌ No se encontró la variable de entorno GCP_SERVICE_ACCOUNT_JSON")
             return pd.DataFrame()
-    except Exception as e:
-        print(f"  ❌ Error leyendo '{nombre_tabla}' / '{nombre_hoja}': {e}")
-        return pd.DataFrame()
-    try:
-        df_principal = obtener_df_de_sheets("Entradas auto", "Eventos")
-        if df_principal.empty:
-            print("⚠️ DataFrame principal vacío. Abortando.")
-            return
-
-        print(f"📋 Total de eventos cargados: {len(df_principal)}")
-
-        # --- DataFrame para rechazados ---
-        df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link'])
-
-        def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href):
-            nonlocal df_rechazados
-            nuevo = pd.DataFrame([{
-                'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
-                'Motivo': motivo, 'Linea': str(linea), 'Fuente': fuente, 'Link': href
-            }])
-            df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
-
-        # --- VERIFICACIÓN DE CIUDADES BLACKLIST ANTES DE PROCESAMIENTO ---
-        print("\n🔍 Iniciando filtro de ciudades blacklist...")
-        indices_a_eliminar = []
-        
-        for idx, row in df_principal.iterrows():
-            nombre_evento = str(row.get('Eventos', ''))
-            locacion = str(row.get('Lugar', ''))
-            texto_combinado = f"{nombre_evento} {locacion}".lower()
-            
-            ciudad_detectada = None
-            for patron in ciudades_blacklist:
-                match = re.search(patron, texto_combinado, re.IGNORECASE)
-                if match:
-                    ciudad_detectada = match.group(0)
-                    break
-            
-            if ciudad_detectada:
-                registrar_rechazo(
-                    nombre=nombre_evento,
-                    loc=locacion,
-                    fecha=row.get('Comienza', 'N/A'),
-                    motivo=f"Ciudad en blacklist detectada: {ciudad_detectada}",
-                    linea="1625",
-                    fuente=row.get('Fuente', 'Desconocida'),
-                    href=row.get('Origen', '')
-                )
-                indices_a_eliminar.append(idx)
-                
-                tabla_origen = dict_fuentes.get(row.get('Fuente'))
-                if tabla_origen:
-                    print(f"  🏙️ Blacklist ({ciudad_detectada}): Eliminando '{nombre_evento}' de {tabla_origen}")
-                    borrar_fila_por_origen(tabla_origen, "Hoja 1", row.get('Origen'))
-
-        print(f"  ✅ Filtro blacklist completado: {len(indices_a_eliminar)} eventos eliminados.")
-        df_principal = df_principal.drop(indices_a_eliminar).reset_index(drop=True)
-        print(f"  📋 Eventos restantes tras filtro: {len(df_principal)}")
-
-        # --- 1. NORMALIZACIÓN DE LUGARES ---
-        print("\n📍 Iniciando normalización de lugares...")
-        df_equiv = obtener_df_de_sheets("Equiv Lugares", "Hoja 1")
-        mapeo_lugares = {}
-        if not df_equiv.empty:
-            mapeo_lugares = {str(k).lower().strip(): str(v).strip() for k, v in zip(df_equiv.iloc[:, 0], df_equiv.iloc[:, 1])}
-            print(f"  📖 Tabla de equivalencias cargada: {len(mapeo_lugares)} entradas.")
-        else:
-            print("  ⚠️ Tabla de equivalencias vacía o no encontrada.")
-
-        lugares_no_encontrados = []
-
-        def normalizar_lugar(lugar_raw):
-            lugar_key = str(lugar_raw).lower().strip()
-            if lugar_key in mapeo_lugares:
-                return mapeo_lugares[lugar_key]
+        try:
+            info_claves = json.loads(secreto_json)
+            creds = service_account.Credentials.from_service_account_info(
+                info_claves, scopes=[
+                    "https://www.googleapis.com/auth/spreadsheets",
+                    "https://www.googleapis.com/auth/drive"
+                ]
+            )
+            client = gspread.authorize(creds)
+            sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
+            data = sheet.get_all_values()
+            if len(data) > 1:
+                df = pd.DataFrame(data[1:], columns=data[0])
+                print(f"  📗 Sheets OK: '{nombre_tabla}' / '{nombre_hoja}' → {len(df)} filas")
+                return df
             else:
-                if lugar_key not in lugares_no_encontrados:
-                    lugares_no_encontrados.append(lugar_key)
-                return lugar_key  # Devuelve el valor original si no encuentra equivalencia
-
-        df_principal['Lugar_Norm'] = df_principal['Lugar'].apply(normalizar_lugar)
-
-        print(f"  ✅ Normalización completada.")
-        print(f"  ⚠️ Lugares NO encontrados en tabla de equivalencias: {len(lugares_no_encontrados)}")
-        if lugares_no_encontrados:
-            print(f"  📝 Detalle lugares no encontrados:")
-            for lugar in lugares_no_encontrados:
-                print(f"      - '{lugar}'")
-
-        # --- 2. PROCESAMIENTO DE FECHAS ---
-        print("\n📅 Procesando fechas...")
-        df_principal['Comienza_DT'] = pd.to_datetime(df_principal['Comienza'], errors='coerce').dt.date
-        fechas_invalidas = df_principal['Comienza_DT'].isna().sum()
-        print(f"  ✅ Fechas procesadas. Fechas inválidas/nulas: {fechas_invalidas}")
-
-        duplicados_para_registro = []
-        indices_ya_agrupados = set()
-        
-        # Calcular el próximo ID para la hoja Duplicados
-        print("\n🔢 Calculando próximo ID de duplicados...")
-        df_hist_dups = obtener_df_de_sheets("Duplicados", "Hoja 1")
-        prox_id_num = 1
-        if not df_hist_dups.empty and 'id_dup' in df_hist_dups.columns:
-            try:
-                nums = df_hist_dups['id_dup'].astype(str).str.extract(r'(\d+)').dropna().astype(int)
-                if not nums.empty: prox_id_num = int(nums.max()) + 1
-            except:
-                prox_id_num = 1
-        print(f"  📌 Próximo ID de duplicado: {prox_id_num}")
-
-        # --- 3. BUCLE DE DETECCIÓN DE DUPLICADOS ---
-        print("\n🔍 Iniciando detección de duplicados...")
-        prioridad_fuentes = {fuente: i for i, fuente in enumerate(dict_fuentes.keys())}
-        grupos_encontrados = 0
-
-        for i in range(len(df_principal)):
-            if i in indices_ya_agrupados: continue
+                print(f"  ⚠️ Hoja vacía o sin datos: '{nombre_tabla}' / '{nombre_hoja}'")
+                return pd.DataFrame()
+        except Exception as e:
+            print(f"  ❌ Error leyendo '{nombre_tabla}' / '{nombre_hoja}': {e}")
+            return pd.DataFrame()
+        try:
+            df_principal = obtener_df_de_sheets("Entradas auto", "Eventos")
+            if df_principal.empty:
+                print("⚠️ DataFrame principal vacío. Abortando.")
+                return
+    
+            print(f"📋 Total de eventos cargados: {len(df_principal)}")
+    
+            # --- DataFrame para rechazados ---
+            df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link'])
+    
+            def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href):
+                nonlocal df_rechazados
+                nuevo = pd.DataFrame([{
+                    'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
+                    'Motivo': motivo, 'Linea': str(linea), 'Fuente': fuente, 'Link': href
+                }])
+                df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
+    
+            # --- VERIFICACIÓN DE CIUDADES BLACKLIST ANTES DE PROCESAMIENTO ---
+            print("\n🔍 Iniciando filtro de ciudades blacklist...")
+            indices_a_eliminar = []
             
-            fila_a = df_principal.iloc[i]
-            if pd.isna(fila_a['Comienza_DT']): continue
-
-            grupo_actual_indices = [i]
-            for j in range(i + 1, len(df_principal)):
-                if j in indices_ya_agrupados: continue
-                fila_b = df_principal.iloc[j]
+            for idx, row in df_principal.iterrows():
+                nombre_evento = str(row.get('Eventos', ''))
+                locacion = str(row.get('Lugar', ''))
+                texto_combinado = f"{nombre_evento} {locacion}".lower()
                 
-                mismo_lugar = (str(fila_a['Lugar_Norm']) == str(fila_b['Lugar_Norm'])) and fila_a['Lugar_Norm'] != ""
-                misma_fecha = (fila_a['Comienza_DT'] == fila_b['Comienza_DT'])
-
-                if mismo_lugar and misma_fecha:
-                    grupo_actual_indices.append(j)
-
-            if len(grupo_actual_indices) > 1:
-                grupos_encontrados += 1
-                filas_grupo = df_principal.iloc[grupo_actual_indices].copy()
-                filas_grupo['prioridad'] = filas_grupo['Fuente'].map(lambda x: prioridad_fuentes.get(x, 99))
-                filas_grupo = filas_grupo.sort_values(by='prioridad', ascending=True)
-
-                fuente_ganadora = filas_grupo.iloc[0]['Fuente']
-                print(f"  🔁 Grupo duplicado #{grupos_encontrados} (ID {prox_id_num}): {len(filas_grupo)} eventos en '{filas_grupo.iloc[0]['Lugar_Norm']}' el {filas_grupo.iloc[0]['Comienza_DT']} → Ganador: {fuente_ganadora}")
+                ciudad_detectada = None
+                for patron in ciudades_blacklist:
+                    match = re.search(patron, texto_combinado, re.IGNORECASE)
+                    if match:
+                        ciudad_detectada = match.group(0)
+                        break
                 
-                letras = "ABCDEFGHIJKL"
-                for idx, (original_idx, row) in enumerate(filas_grupo.iterrows()):
-                    indices_ya_agrupados.add(original_idx)
+                if ciudad_detectada:
+                    registrar_rechazo(
+                        nombre=nombre_evento,
+                        loc=locacion,
+                        fecha=row.get('Comienza', 'N/A'),
+                        motivo=f"Ciudad en blacklist detectada: {ciudad_detectada}",
+                        linea="1625",
+                        fuente=row.get('Fuente', 'Desconocida'),
+                        href=row.get('Origen', '')
+                    )
+                    indices_a_eliminar.append(idx)
                     
-                    ev = row.copy()
-                    ev['id_dup'] = f"{prox_id_num}{letras[idx]}"
-                    
-                    duplicados_para_registro.append(ev.drop(['Lugar_Norm', 'Comienza_DT', 'prioridad'], errors='ignore'))
-                    
-                    if idx > 0:
-                        tabla_dest = dict_fuentes.get(ev['Fuente'])
-                        if tabla_dest:
-                            print(f"    🗑️ Eliminando duplicado ({ev['Fuente']}): '{ev.get('Eventos', '')}'")
-                            borrar_fila_por_origen(tabla_dest, "Hoja 1", ev['Origen'])
+                    tabla_origen = dict_fuentes.get(row.get('Fuente'))
+                    if tabla_origen:
+                        print(f"  🏙️ Blacklist ({ciudad_detectada}): Eliminando '{nombre_evento}' de {tabla_origen}")
+                        borrar_fila_por_origen(tabla_origen, "Hoja 1", row.get('Origen'))
+    
+            print(f"  ✅ Filtro blacklist completado: {len(indices_a_eliminar)} eventos eliminados.")
+            df_principal = df_principal.drop(indices_a_eliminar).reset_index(drop=True)
+            print(f"  📋 Eventos restantes tras filtro: {len(df_principal)}")
+    
+            # --- 1. NORMALIZACIÓN DE LUGARES ---
+            print("\n📍 Iniciando normalización de lugares...")
+            df_equiv = obtener_df_de_sheets("Equiv Lugares", "Hoja 1")
+            mapeo_lugares = {}
+            if not df_equiv.empty:
+                mapeo_lugares = {str(k).lower().strip(): str(v).strip() for k, v in zip(df_equiv.iloc[:, 0], df_equiv.iloc[:, 1])}
+                print(f"  📖 Tabla de equivalencias cargada: {len(mapeo_lugares)} entradas.")
+            else:
+                print("  ⚠️ Tabla de equivalencias vacía o no encontrada.")
+    
+            lugares_no_encontrados = []
+    
+            def normalizar_lugar(lugar_raw):
+                lugar_key = str(lugar_raw).lower().strip()
+                if lugar_key in mapeo_lugares:
+                    return mapeo_lugares[lugar_key]
+                else:
+                    if lugar_key not in lugares_no_encontrados:
+                        lugares_no_encontrados.append(lugar_key)
+                    return lugar_key  # Devuelve el valor original si no encuentra equivalencia
+    
+            df_principal['Lugar_Norm'] = df_principal['Lugar'].apply(normalizar_lugar)
+    
+            print(f"  ✅ Normalización completada.")
+            print(f"  ⚠️ Lugares NO encontrados en tabla de equivalencias: {len(lugares_no_encontrados)}")
+            if lugares_no_encontrados:
+                print(f"  📝 Detalle lugares no encontrados:")
+                for lugar in lugares_no_encontrados:
+                    print(f"      - '{lugar}'")
+    
+            # --- 2. PROCESAMIENTO DE FECHAS ---
+            print("\n📅 Procesando fechas...")
+            df_principal['Comienza_DT'] = pd.to_datetime(df_principal['Comienza'], errors='coerce').dt.date
+            fechas_invalidas = df_principal['Comienza_DT'].isna().sum()
+            print(f"  ✅ Fechas procesadas. Fechas inválidas/nulas: {fechas_invalidas}")
+    
+            duplicados_para_registro = []
+            indices_ya_agrupados = set()
+            
+            # Calcular el próximo ID para la hoja Duplicados
+            print("\n🔢 Calculando próximo ID de duplicados...")
+            df_hist_dups = obtener_df_de_sheets("Duplicados", "Hoja 1")
+            prox_id_num = 1
+            if not df_hist_dups.empty and 'id_dup' in df_hist_dups.columns:
+                try:
+                    nums = df_hist_dups['id_dup'].astype(str).str.extract(r'(\d+)').dropna().astype(int)
+                    if not nums.empty: prox_id_num = int(nums.max()) + 1
+                except:
+                    prox_id_num = 1
+            print(f"  📌 Próximo ID de duplicado: {prox_id_num}")
+    
+            # --- 3. BUCLE DE DETECCIÓN DE DUPLICADOS ---
+            print("\n🔍 Iniciando detección de duplicados...")
+            prioridad_fuentes = {fuente: i for i, fuente in enumerate(dict_fuentes.keys())}
+            grupos_encontrados = 0
+    
+            for i in range(len(df_principal)):
+                if i in indices_ya_agrupados: continue
                 
-                prox_id_num += 1
-
-        print(f"\n  ✅ Detección completada: {grupos_encontrados} grupos de duplicados encontrados.")
-
-        # --- 4. FINALIZAR ---
-        print("\n💾 Guardando resultados...")
-        if duplicados_para_registro:
-            df_final = pd.DataFrame(duplicados_para_registro)
-            subir_a_google_sheets(df_final, "Duplicados", "Hoja 1")
-            print(f"  ✅ {len(duplicados_para_registro)} registros subidos a hoja 'Duplicados'.")
-        else:
-            print("  ✨ No se hallaron duplicados para procesar.")
-
-        # --- SUBIR RECHAZADOS ---
-        if not df_rechazados.empty:
-            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
-            print(f"  ✅ {len(df_rechazados)} eventos rechazados subidos a hoja 'Rechazados'.")
-        else:
-            print("  ✨ No hubo eventos rechazados por blacklist.")
-
-        print("\n🏁 Proceso finalizado correctamente.")
-
-    except Exception as e:
-        print(f"💥 ERROR en procesar_duplicados: {e}")
+                fila_a = df_principal.iloc[i]
+                if pd.isna(fila_a['Comienza_DT']): continue
+    
+                grupo_actual_indices = [i]
+                for j in range(i + 1, len(df_principal)):
+                    if j in indices_ya_agrupados: continue
+                    fila_b = df_principal.iloc[j]
+                    
+                    mismo_lugar = (str(fila_a['Lugar_Norm']) == str(fila_b['Lugar_Norm'])) and fila_a['Lugar_Norm'] != ""
+                    misma_fecha = (fila_a['Comienza_DT'] == fila_b['Comienza_DT'])
+    
+                    if mismo_lugar and misma_fecha:
+                        grupo_actual_indices.append(j)
+    
+                if len(grupo_actual_indices) > 1:
+                    grupos_encontrados += 1
+                    filas_grupo = df_principal.iloc[grupo_actual_indices].copy()
+                    filas_grupo['prioridad'] = filas_grupo['Fuente'].map(lambda x: prioridad_fuentes.get(x, 99))
+                    filas_grupo = filas_grupo.sort_values(by='prioridad', ascending=True)
+    
+                    fuente_ganadora = filas_grupo.iloc[0]['Fuente']
+                    print(f"  🔁 Grupo duplicado #{grupos_encontrados} (ID {prox_id_num}): {len(filas_grupo)} eventos en '{filas_grupo.iloc[0]['Lugar_Norm']}' el {filas_grupo.iloc[0]['Comienza_DT']} → Ganador: {fuente_ganadora}")
+                    
+                    letras = "ABCDEFGHIJKL"
+                    for idx, (original_idx, row) in enumerate(filas_grupo.iterrows()):
+                        indices_ya_agrupados.add(original_idx)
+                        
+                        ev = row.copy()
+                        ev['id_dup'] = f"{prox_id_num}{letras[idx]}"
+                        
+                        duplicados_para_registro.append(ev.drop(['Lugar_Norm', 'Comienza_DT', 'prioridad'], errors='ignore'))
+                        
+                        if idx > 0:
+                            tabla_dest = dict_fuentes.get(ev['Fuente'])
+                            if tabla_dest:
+                                print(f"    🗑️ Eliminando duplicado ({ev['Fuente']}): '{ev.get('Eventos', '')}'")
+                                borrar_fila_por_origen(tabla_dest, "Hoja 1", ev['Origen'])
+                    
+                    prox_id_num += 1
+    
+            print(f"\n  ✅ Detección completada: {grupos_encontrados} grupos de duplicados encontrados.")
+    
+            # --- 4. FINALIZAR ---
+            print("\n💾 Guardando resultados...")
+            if duplicados_para_registro:
+                df_final = pd.DataFrame(duplicados_para_registro)
+                subir_a_google_sheets(df_final, "Duplicados", "Hoja 1")
+                print(f"  ✅ {len(duplicados_para_registro)} registros subidos a hoja 'Duplicados'.")
+            else:
+                print("  ✨ No se hallaron duplicados para procesar.")
+    
+            # --- SUBIR RECHAZADOS ---
+            if not df_rechazados.empty:
+                subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
+                print(f"  ✅ {len(df_rechazados)} eventos rechazados subidos a hoja 'Rechazados'.")
+            else:
+                print("  ✨ No hubo eventos rechazados por blacklist.")
+    
+            print("\n🏁 Proceso finalizado correctamente.")
+    
+        except Exception as e:
+            print(f"💥 ERROR en procesar_duplicados: {e}")
 
 
 indices_processed = set()
