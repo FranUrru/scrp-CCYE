@@ -2709,6 +2709,63 @@ def procesar_duplicados_y_normalizar():
         except Exception as e:
             print(f"    ❌ Error borrando en '{nombre_tabla}': {e}")
 
+        def normalizar_lugar_en_sheet(nombre_tabla, nombre_hoja, origen_link, lugar_normalizado):
+            """Busca la fila por su link de origen y reemplaza el valor de la columna Lugar."""
+            import os, json, gspread
+            from google.oauth2 import service_account
+    
+            secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
+            if not secreto_json:
+                print(f"    ❌ No se encontró GCP_SERVICE_ACCOUNT_JSON")
+                return
+    
+            try:
+                info_claves = json.loads(secreto_json)
+                creds = service_account.Credentials.from_service_account_info(
+                    info_claves, scopes=[
+                        "https://www.googleapis.com/auth/spreadsheets",
+                        "https://www.googleapis.com/auth/drive"
+                    ]
+                )
+                client = gspread.authorize(creds)
+                sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
+    
+                data = sheet.get_all_values()
+                if len(data) <= 1:
+                    print(f"    ⚠️ Hoja '{nombre_tabla}' vacía.")
+                    return
+    
+                headers = data[0]
+    
+                # Detectar columna Lugar
+                columnas_lugar = ['Lugar', 'lugar', 'Location', 'Locacion', 'Locación']
+                col_lugar = next((c for c in columnas_lugar if c in headers), None)
+                if not col_lugar:
+                    print(f"    ❌ No se encontró columna 'Lugar' en '{nombre_tabla}'")
+                    return
+                col_lugar_idx = headers.index(col_lugar) + 1  # gspread usa índice base 1
+    
+                # Detectar columna de ID/origen
+                columnas_posibles = ['Origen', 'href', 'Link', 'URL']
+                col_id = next((c for c in columnas_posibles if c in headers), None)
+                if not col_id:
+                    print(f"    ❌ No se encontró columna de ID en '{nombre_tabla}'")
+                    return
+    
+                df_temp = pd.DataFrame(data[1:], columns=headers)
+                match_idx = df_temp.index[df_temp[col_id].astype(str) == str(origen_link)].tolist()
+    
+                if match_idx:
+                    fila_sheet = match_idx[0] + 2  # +1 header, +1 base 1
+                    sheet.update_cell(fila_sheet, col_lugar_idx, lugar_normalizado)
+                    print(f"    ✏️ Lugar actualizado en '{nombre_tabla}' fila {fila_sheet}: '{lugar_normalizado}'")
+                else:
+                    print(f"    ⚠️ Link no encontrado en '{nombre_tabla}': {origen_link}")
+    
+            except Exception as e:
+                print(f"    ❌ Error normalizando lugar en '{nombre_tabla}': {e}")
+
+
     # --- CUERPO PRINCIPAL ---
     try:
         print("\n📥 Cargando datos principales de Sheets...")
@@ -2783,61 +2840,6 @@ def procesar_duplicados_y_normalizar():
 
         lugares_no_encontrados = []
 
-    def normalizar_lugar_en_sheet(nombre_tabla, nombre_hoja, origen_link, lugar_normalizado):
-        """Busca la fila por su link de origen y reemplaza el valor de la columna Lugar."""
-        import os, json, gspread
-        from google.oauth2 import service_account
-
-        secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
-        if not secreto_json:
-            print(f"    ❌ No se encontró GCP_SERVICE_ACCOUNT_JSON")
-            return
-
-        try:
-            info_claves = json.loads(secreto_json)
-            creds = service_account.Credentials.from_service_account_info(
-                info_claves, scopes=[
-                    "https://www.googleapis.com/auth/spreadsheets",
-                    "https://www.googleapis.com/auth/drive"
-                ]
-            )
-            client = gspread.authorize(creds)
-            sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
-
-            data = sheet.get_all_values()
-            if len(data) <= 1:
-                print(f"    ⚠️ Hoja '{nombre_tabla}' vacía.")
-                return
-
-            headers = data[0]
-
-            # Detectar columna Lugar
-            columnas_lugar = ['Lugar', 'lugar', 'Location', 'Locacion', 'Locación']
-            col_lugar = next((c for c in columnas_lugar if c in headers), None)
-            if not col_lugar:
-                print(f"    ❌ No se encontró columna 'Lugar' en '{nombre_tabla}'")
-                return
-            col_lugar_idx = headers.index(col_lugar) + 1  # gspread usa índice base 1
-
-            # Detectar columna de ID/origen
-            columnas_posibles = ['Origen', 'href', 'Link', 'URL']
-            col_id = next((c for c in columnas_posibles if c in headers), None)
-            if not col_id:
-                print(f"    ❌ No se encontró columna de ID en '{nombre_tabla}'")
-                return
-
-            df_temp = pd.DataFrame(data[1:], columns=headers)
-            match_idx = df_temp.index[df_temp[col_id].astype(str) == str(origen_link)].tolist()
-
-            if match_idx:
-                fila_sheet = match_idx[0] + 2  # +1 header, +1 base 1
-                sheet.update_cell(fila_sheet, col_lugar_idx, lugar_normalizado)
-                print(f"    ✏️ Lugar actualizado en '{nombre_tabla}' fila {fila_sheet}: '{lugar_normalizado}'")
-            else:
-                print(f"    ⚠️ Link no encontrado en '{nombre_tabla}': {origen_link}")
-
-        except Exception as e:
-            print(f"    ❌ Error normalizando lugar en '{nombre_tabla}': {e}")
             
 # --- 1. NORMALIZACIÓN DE LUGARES ---
         print("\n📍 Iniciando normalización de lugares...")
