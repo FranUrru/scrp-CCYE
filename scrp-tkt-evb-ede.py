@@ -2608,16 +2608,6 @@ log('FAMAF')
 #ejecutar_scraper_famaf()
 
 
-#Importante el orden. Marca jerarquía. El primero se mantiene siempre a la hora de comparar duplicados y así...
-dict_fuentes = {
-    'Ferias y Congresos': 'Ferias y Congresos (Auto)',
-    'Ticketek': 'Ticketek historico (Auto)',
-    'Eden Entradas': 'Eden historico (Auto)',
-    'Autoentrada': 'Autoentrada historico (Auto)',
-    'Agencia Turismo Cba':'Turismo CBA (Auto)',
-    'Ente Metropolitano':'Metropolitano historico (Auto)',
-    'eventbrite': 'base_h_scrp_eventbrite'
-}
 
 #Importante el orden. Marca jerarquía. El primero se mantiene siempre a la hora de comparar duplicados y así...
 dict_fuentes = {
@@ -2638,28 +2628,7 @@ def procesar_duplicados_y_normalizar():
 
     # --- CIUDADES BLACKLIST (no permitidas) ---
     ciudades_blacklist = [
-        r'neuqu[eé]n',
-        r'buenos\s+aires',
-        r'rosario',
-        r'mendoza',
-        r'tucum[aá]n',
-        r'salta',
-        r'mar\s+del\s+plata',
-        r'r[ií]o\s+cuarto',
-        r'villa\s+dolores',
-        r'san\s+francisco',
-        r'villa\s+mar[ií]a',
-        r'san\s+luis',
-        r'la\s+rioja',
-        r'catamarca',
-        r'jujuy',
-        r'formosa',
-        r'corrientes',
-        r'resistencia',
-        r'posadas',
-        r'santa\s+fe',
-        r'par[aá]n[aá]',
-        r'la\s+plata',
+        r'neuqu[eé]n'
     ]
 
     # --- FUNCIÓN AUXILIAR INTERNA ---
@@ -2814,18 +2783,104 @@ def procesar_duplicados_y_normalizar():
 
         lugares_no_encontrados = []
 
-        def normalizar_lugar(lugar_raw):
-            lugar_key = str(lugar_raw).lower().strip()
+def normalizar_lugar_en_sheet(nombre_tabla, nombre_hoja, origen_link, lugar_normalizado):
+        """Busca la fila por su link de origen y reemplaza el valor de la columna Lugar."""
+        import os, json, gspread
+        from google.oauth2 import service_account
+
+        secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
+        if not secreto_json:
+            print(f"    ❌ No se encontró GCP_SERVICE_ACCOUNT_JSON")
+            return
+
+        try:
+            info_claves = json.loads(secreto_json)
+            creds = service_account.Credentials.from_service_account_info(
+                info_claves, scopes=[
+                    "https://www.googleapis.com/auth/spreadsheets",
+                    "https://www.googleapis.com/auth/drive"
+                ]
+            )
+            client = gspread.authorize(creds)
+            sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
+
+            data = sheet.get_all_values()
+            if len(data) <= 1:
+                print(f"    ⚠️ Hoja '{nombre_tabla}' vacía.")
+                return
+
+            headers = data[0]
+
+            # Detectar columna Lugar
+            columnas_lugar = ['Lugar', 'lugar', 'Location', 'Locacion', 'Locación']
+            col_lugar = next((c for c in columnas_lugar if c in headers), None)
+            if not col_lugar:
+                print(f"    ❌ No se encontró columna 'Lugar' en '{nombre_tabla}'")
+                return
+            col_lugar_idx = headers.index(col_lugar) + 1  # gspread usa índice base 1
+
+            # Detectar columna de ID/origen
+            columnas_posibles = ['Origen', 'href', 'Link', 'URL']
+            col_id = next((c for c in columnas_posibles if c in headers), None)
+            if not col_id:
+                print(f"    ❌ No se encontró columna de ID en '{nombre_tabla}'")
+                return
+
+            df_temp = pd.DataFrame(data[1:], columns=headers)
+            match_idx = df_temp.index[df_temp[col_id].astype(str) == str(origen_link)].tolist()
+
+            if match_idx:
+                fila_sheet = match_idx[0] + 2  # +1 header, +1 base 1
+                sheet.update_cell(fila_sheet, col_lugar_idx, lugar_normalizado)
+                print(f"    ✏️ Lugar actualizado en '{nombre_tabla}' fila {fila_sheet}: '{lugar_normalizado}'")
+            else:
+                print(f"    ⚠️ Link no encontrado en '{nombre_tabla}': {origen_link}")
+
+        except Exception as e:
+            print(f"    ❌ Error normalizando lugar en '{nombre_tabla}': {e}")
+            
+# --- 1. NORMALIZACIÓN DE LUGARES ---
+        print("\n📍 Iniciando normalización de lugares...")
+        df_equiv = obtener_df_de_sheets("Equiv Lugares", "Hoja 1")
+        mapeo_lugares = {}
+        if not df_equiv.empty:
+            mapeo_lugares = {
+                str(k).lower().strip(): str(v).strip()
+                for k, v in zip(df_equiv.iloc[:, 0], df_equiv.iloc[:, 1])
+            }
+            print(f"  📖 Tabla de equivalencias cargada: {len(mapeo_lugares)} entradas.")
+        else:
+            print("  ⚠️ Tabla de equivalencias vacía o no encontrada.")
+
+        lugares_no_encontrados = []
+        lugares_normalizados = 0
+
+        for idx, row in df_principal.iterrows():
+            lugar_raw = str(row.get('Lugar', ''))
+            lugar_key = lugar_raw.lower().strip()
+
             if lugar_key in mapeo_lugares:
-                return mapeo_lugares[lugar_key]
+                lugar_norm = mapeo_lugares[lugar_key]
+
+                # Solo actualizar si el valor cambió
+                if lugar_norm != lugar_raw:
+                    # Actualizar en df_principal para que la detección de duplicados use el valor correcto
+                    df_principal.at[idx, 'Lugar'] = lugar_norm
+
+                    # Actualizar en la hoja fuente correspondiente
+                    tabla_origen = dict_fuentes.get(row.get('Fuente'))
+                    if tabla_origen:
+                        print(f"  ✏️ Normalizando '{lugar_raw}' → '{lugar_norm}' en {tabla_origen}")
+                        normalizar_lugar_en_sheet(tabla_origen, "Hoja 1", row.get('Origen'), lugar_norm)
+                        lugares_normalizados += 1
             else:
                 if lugar_key not in lugares_no_encontrados:
                     lugares_no_encontrados.append(lugar_key)
-                return lugar_key
 
-        df_principal['Lugar_Norm'] = df_principal['Lugar'].apply(normalizar_lugar)
+        # Usar Lugar directamente (ya normalizado en el df)
+        df_principal['Lugar_Norm'] = df_principal['Lugar']
 
-        print(f"  ✅ Normalización completada.")
+        print(f"  ✅ Normalización completada: {lugares_normalizados} lugares actualizados en sheets.")
         print(f"  ⚠️ Lugares NO encontrados en tabla de equivalencias: {len(lugares_no_encontrados)}")
         if lugares_no_encontrados:
             print(f"  📝 Detalle lugares no encontrados:")
