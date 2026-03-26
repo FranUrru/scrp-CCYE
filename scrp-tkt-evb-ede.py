@@ -2710,7 +2710,9 @@ def procesar_duplicados_y_normalizar():
         except Exception as e:
             print(f"    ❌ Error borrando en '{nombre_tabla}': {e}")
 
-    def normalizar_lugar_en_sheet(nombre_tabla, nombre_hoja, origen_link, lugar_normalizado, max_reintentos=4, cooldown_base=65):
+    def normalizar_lugar_en_sheet(nombre_tabla, nombre_hoja, origen_link, lugar_normalizado,
+                                   nombre_evento=None, fecha_evento=None,
+                                   max_reintentos=4, cooldown_base=65):
         import os, json, time, gspread
         from google.oauth2 import service_account
     
@@ -2737,6 +2739,7 @@ def procesar_duplicados_y_normalizar():
                     return
     
                 headers = data[0]
+                df_temp = pd.DataFrame(data[1:], columns=headers)
     
                 columnas_lugar = ['Lugar', 'lugar', 'Location', 'Locacion', 'Locación']
                 col_lugar = next((c for c in columnas_lugar if c in headers), None)
@@ -2751,27 +2754,59 @@ def procesar_duplicados_y_normalizar():
                     print(f"    ❌ No se encontró columna de ID en '{nombre_tabla}'")
                     return
     
-                df_temp = pd.DataFrame(data[1:], columns=headers)
-                match_idx = df_temp.index[df_temp[col_id].astype(str) == str(origen_link)].tolist()
+                # --- Buscar fila: primero intentar por origen único,
+                #     si hay más de un match usar nombre+fecha como desempate ---
+                match_por_origen = df_temp.index[
+                    df_temp[col_id].astype(str) == str(origen_link)
+                ].tolist()
     
-                if match_idx:
-                    fila_sheet = match_idx[0] + 2
-                    sheet.update_cell(fila_sheet, col_lugar_idx, lugar_normalizado)
-                    print(f"    ✏️ Lugar actualizado en '{nombre_tabla}' fila {fila_sheet}: '{lugar_normalizado}'")
-                else:
+                if len(match_por_origen) == 0:
                     print(f"    ⚠️ Link no encontrado en '{nombre_tabla}': {origen_link}")
-                return  # ← éxito, salir del loop de reintentos
+                    return
+    
+                elif len(match_por_origen) == 1:
+                    # Origen único → comportamiento original
+                    match_idx = match_por_origen
+    
+                else:
+                    # Origen compartido → desempatar por nombre + fecha
+                    if nombre_evento is None or fecha_evento is None:
+                        print(f"    ⚠️ Origen compartido en '{nombre_tabla}' pero no se pasó nombre/fecha. Se omite.")
+                        return
+    
+                    col_nombre = next((c for c in ['Eventos', 'Nombre', 'Titulo', 'Title'] if c in headers), None)
+                    col_fecha  = next((c for c in ['Comienza', 'Fecha', 'Date', 'Start']   if c in headers), None)
+    
+                    if not col_nombre or not col_fecha:
+                        print(f"    ⚠️ No se encontraron columnas nombre/fecha en '{nombre_tabla}'. Se omite.")
+                        return
+    
+                    mask = (
+                        (df_temp[col_id].astype(str)     == str(origen_link))   &
+                        (df_temp[col_nombre].astype(str)  == str(nombre_evento)) &
+                        (df_temp[col_fecha].astype(str)   == str(fecha_evento))
+                    )
+                    match_idx = df_temp.index[mask].tolist()
+    
+                    if not match_idx:
+                        print(f"    ⚠️ Sin match por nombre+fecha en '{nombre_tabla}': '{nombre_evento}' / {fecha_evento}")
+                        return
+    
+                fila_sheet = match_idx[0] + 2  # +1 header, +1 base 1
+                sheet.update_cell(fila_sheet, col_lugar_idx, lugar_normalizado)
+                print(f"    ✏️ Lugar actualizado en '{nombre_tabla}' fila {fila_sheet}: '{lugar_normalizado}'")
+                return
     
             except Exception as e:
                 es_429 = '429' in str(e) or 'Quota exceeded' in str(e)
                 if es_429 and intento < max_reintentos:
-                    espera = cooldown_base * intento  # 65s, 130s, 195s...
+                    espera = cooldown_base * intento
                     print(f"    ⏳ Rate limit (429) en '{nombre_tabla}'. Esperando {espera}s antes del intento {intento+1}/{max_reintentos}...")
                     time.sleep(espera)
                 else:
                     print(f"    ❌ Error normalizando lugar en '{nombre_tabla}': {e}")
                     return
-
+                
     # --- CUERPO PRINCIPAL ---
     try:
         print("\n📥 Cargando datos principales de Sheets...")
