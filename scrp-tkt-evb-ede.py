@@ -2783,7 +2783,7 @@ def procesar_duplicados_y_normalizar():
 
         lugares_no_encontrados = []
 
-def normalizar_lugar_en_sheet(nombre_tabla, nombre_hoja, origen_link, lugar_normalizado):
+    def normalizar_lugar_en_sheet(nombre_tabla, nombre_hoja, origen_link, lugar_normalizado):
         """Busca la fila por su link de origen y reemplaza el valor de la columna Lugar."""
         import os, json, gspread
         from google.oauth2 import service_account
