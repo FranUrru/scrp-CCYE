@@ -2638,30 +2638,36 @@ def procesar_duplicados_y_normalizar():
     
     # --- CIUDADES BLACKLIST (no permitidas) ---
     ciudades_blacklist = [
-        r'neuqu[eé]n',
-        r'buenos\s+aires',
-        r'rosario',
-        r'mendoza',
-        r'tucum[aá]n',
-        r'salta',
-        r'mar\s+del\s+plata',
-        r'r[ií]o\s+cuarto',
-        r'villa\s+dolores',
-        r'san\s+francisco',
-        r'villa\s+mar[ií]a',
-        r'san\s+luis',
-        r'la\s+rioja',
-        r'catamarca',
-        r'jujuy',
-        r'formosa',
-        r'corrientes',
-        r'resistencia',
-        r'posadas',
-        r'santa\s+fe',
-        r'par[aá]n[aá]',
-        r'la\s+plata',
+        r'neuqu[eé]n'
     ]
-    
+    def obtener_df_de_sheets(nombre_tabla, nombre_hoja):
+    import os, json, gspread
+    from google.oauth2 import service_account
+    secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
+    if not secreto_json:
+        print(f"  ❌ No se encontró la variable de entorno GCP_SERVICE_ACCOUNT_JSON")
+        return pd.DataFrame()
+    try:
+        info_claves = json.loads(secreto_json)
+        creds = service_account.Credentials.from_service_account_info(
+            info_claves, scopes=[
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive"
+            ]
+        )
+        client = gspread.authorize(creds)
+        sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
+        data = sheet.get_all_values()
+        if len(data) > 1:
+            df = pd.DataFrame(data[1:], columns=data[0])
+            print(f"  📗 Sheets OK: '{nombre_tabla}' / '{nombre_hoja}' → {len(df)} filas")
+            return df
+        else:
+            print(f"  ⚠️ Hoja vacía o sin datos: '{nombre_tabla}' / '{nombre_hoja}'")
+            return pd.DataFrame()
+    except Exception as e:
+        print(f"  ❌ Error leyendo '{nombre_tabla}' / '{nombre_hoja}': {e}")
+        return pd.DataFrame()
     try:
         df_principal = obtener_df_de_sheets("Entradas auto", "Eventos")
         if df_principal.empty:
