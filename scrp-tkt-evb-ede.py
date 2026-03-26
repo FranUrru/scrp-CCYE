@@ -2910,7 +2910,11 @@ def procesar_duplicados_y_normalizar():
                     tabla_origen = dict_fuentes.get(row.get('Fuente'))
                     if tabla_origen:
                         print(f"  ✏️ Normalizando '{lugar_raw}' → '{lugar_norm}' en {tabla_origen}")
-                        normalizar_lugar_en_sheet(tabla_origen, "Hoja 1", row.get('Origen'), lugar_norm)
+                        normalizar_lugar_en_sheet(
+                            tabla_origen, "Hoja 1", row.get('Origen'), lugar_norm,
+                            nombre_evento=row.get('Eventos'),   # ← nuevo
+                            fecha_evento=row.get('Comienza')    # ← nuevo
+                        )
                         lugares_normalizados += 1
             else:
                 if lugar_key not in lugares_no_encontrados:
