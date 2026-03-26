@@ -2691,6 +2691,54 @@ def procesar_duplicados_y_normalizar():
         except Exception as e:
             print(f"  ❌ Error leyendo '{nombre_tabla}' / '{nombre_hoja}': {e}")
             return pd.DataFrame()
+    def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
+        import os, json, gspread
+        from google.oauth2 import service_account
+
+        url_exceptuada = "https://www.feriasycongresos.com/calendario-de-eventos?busqueda=C%C3%B3rdoba"
+        if str(origen_link).strip() == url_exceptuada:
+            print(f"    🛡️ Excepción: origen protegido, no se borra.")
+            return
+
+        secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
+        if not secreto_json:
+            print(f"    ❌ No se encontró GCP_SERVICE_ACCOUNT_JSON")
+            return
+
+        try:
+            info_claves = json.loads(secreto_json)
+            creds = service_account.Credentials.from_service_account_info(
+                info_claves, scopes=[
+                    "https://www.googleapis.com/auth/spreadsheets",
+                    "https://www.googleapis.com/auth/drive"
+                ]
+            )
+            client = gspread.authorize(creds)
+            sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
+
+            data = sheet.get_all_values()
+            if len(data) <= 1:
+                print(f"    ⚠️ Hoja '{nombre_tabla}' vacía, nada que borrar.")
+                return
+
+            df_temp = pd.DataFrame(data[1:], columns=data[0])
+
+            columnas_posibles = ['Origen', 'href', 'Link', 'URL']
+            col_id = next((c for c in columnas_posibles if c in df_temp.columns), None)
+
+            if col_id:
+                match_idx = df_temp.index[df_temp[col_id].astype(str) == str(origen_link)].tolist()
+                if match_idx:
+                    fila_a_borrar = match_idx[0] + 2
+                    sheet.delete_rows(fila_a_borrar)
+                    print(f"    🗑️ Eliminado de '{nombre_tabla}' (col {col_id}): {origen_link}")
+                else:
+                    print(f"    ⚠️ Link no encontrado en '{nombre_tabla}': {origen_link}")
+            else:
+                print(f"    ❌ No se encontró columna de ID en '{nombre_tabla}'")
+
+        except Exception as e:
+            print(f"    ❌ Error borrando en '{nombre_tabla}': {e}")
 
     # --- CUERPO PRINCIPAL ---
     try:
