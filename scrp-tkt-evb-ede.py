@@ -3036,6 +3036,61 @@ log('Detección y procesamiento de duplicados')
 procesar_duplicados_y_normalizar()
 
 
+# --- 6. SNAPSHOT JSON EN DRIVE ---
+print("\n🗂️ Generando snapshot JSON en Drive...")
+
+try:
+    import os, json as json_lib, io
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaIoBaseUpload
+
+    secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
+    info_claves = json_lib.loads(secreto_json)
+    creds = service_account.Credentials.from_service_account_info(
+        info_claves,
+        scopes=[
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+    )
+
+    # Leer la hoja final ya procesada
+    df_final_limpio = obtener_df_de_sheets("Entradas auto", "Eventos")
+    registros = df_final_limpio.to_dict(orient='records')
+    contenido_json = json_lib.dumps(registros, ensure_ascii=False, indent=2)
+
+    # Subir como archivo .json a Drive
+    drive_service = build('drive', 'v3', credentials=creds)
+    nombre_archivo = "snapshot_eventos.json"
+
+    # Buscar si ya existe para sobreescribir
+    resultado = drive_service.files().list(
+        q=f"name='{nombre_archivo}' and trashed=false",
+        fields="files(id, name)"
+    ).execute()
+    archivos = resultado.get('files', [])
+
+    buffer = io.BytesIO(contenido_json.encode('utf-8'))
+    media = MediaIoBaseUpload(buffer, mimetype='application/json', resumable=False)
+
+    if archivos:
+        file_id = archivos[0]['id']
+        drive_service.files().update(fileId=file_id, media_body=media).execute()
+        log(f"  ✅ Snapshot actualizado en Drive (mismo archivo): {nombre_archivo} → {len(registros)} eventos")
+    else:
+        drive_service.files().create(
+            body={'name': nombre_archivo, 'mimeType': 'application/json'},
+            media_body=media
+        ).execute()
+        log(f"  ✅ Snapshot creado en Drive: {nombre_archivo} → {len(registros)} eventos")
+
+except Exception as e:
+    import traceback
+    print(f"  ❌ Error al generar snapshot JSON: {e}")
+    print(traceback.format_exc())
+
+
 
 
 
