@@ -3084,44 +3084,42 @@ try:
         ]
     )
 
-    # Leer la hoja final ya procesada
     df_final_limpio = obtener_df_de_sheets("Entradas auto", "Eventos")
     registros = df_final_limpio.to_dict(orient='records')
     contenido_json = json_lib.dumps(registros, ensure_ascii=False, indent=2)
 
-    # Subir como archivo .json a Drive
     drive_service = build('drive', 'v3', credentials=creds)
     nombre_archivo = "snapshot_eventos.json"
+    CARPETA_ID = "1Ds_NaXnETHmocUGQ2RVsnnxEeXfiGf_R"
 
-CARPETA_ID = "1Ds_NaXnETHmocUGQ2RVsnnxEeXfiGf_R"
+    buffer = io.BytesIO(contenido_json.encode('utf-8'))
+    media = MediaIoBaseUpload(buffer, mimetype='application/json', resumable=False)
 
-# Buscar si ya existe dentro de esa carpeta
-resultado = drive_service.files().list(
-    q=f"name='{nombre_archivo}' and '{CARPETA_ID}' in parents and trashed=false",
-    fields="files(id, name)"
-).execute()
-archivos = resultado.get('files', [])
-
-if archivos:
-    file_id = archivos[0]['id']
-    drive_service.files().update(fileId=file_id, media_body=media).execute()
-    log(f"  ✅ Snapshot actualizado en Drive: {nombre_archivo} → {len(registros)} eventos")
-else:
-    drive_service.files().create(
-        body={
-            'name': nombre_archivo,
-            'mimeType': 'application/json',
-            'parents': [CARPETA_ID]
-        },
-        media_body=media
+    resultado = drive_service.files().list(
+        q=f"name='{nombre_archivo}' and '{CARPETA_ID}' in parents and trashed=false",
+        fields="files(id, name)"
     ).execute()
-    log(f"  ✅ Snapshot creado en Drive: {nombre_archivo} → {len(registros)} eventos")
+    archivos = resultado.get('files', [])
+
+    if archivos:
+        file_id = archivos[0]['id']
+        drive_service.files().update(fileId=file_id, media_body=media).execute()
+        log(f"  ✅ Snapshot actualizado en Drive: {nombre_archivo} → {len(registros)} eventos")
+    else:
+        drive_service.files().create(
+            body={
+                'name': nombre_archivo,
+                'mimeType': 'application/json',
+                'parents': [CARPETA_ID]
+            },
+            media_body=media
+        ).execute()
+        log(f"  ✅ Snapshot creado en Drive: {nombre_archivo} → {len(registros)} eventos")
 
 except Exception as e:
     import traceback
     print(f"  ❌ Error al generar snapshot JSON: {e}")
     print(traceback.format_exc())
-
 
 
 
