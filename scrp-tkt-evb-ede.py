@@ -1397,14 +1397,14 @@ def ejecutar_scraper_eventbrite():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
     return reporte
 
-intentos_maximos = 3
+intentos_maximos = 0
 resultado_final = None
 log('')
 log('EVENTBRITE')
 for i in range(1, intentos_maximos + 1):
     try:
         print(f"🚀 Iniciando Eventbrite - Intento {i} de {intentos_maximos}...")
-        resultado_final = #ejecutar_scraper_eventbrite()
+        resultado_final = ejecutar_scraper_eventbrite()
         
         # Si llega aquí, es que funcionó (no hubo raise)
         print(f"✅ Intento {i} completado con éxito.")
