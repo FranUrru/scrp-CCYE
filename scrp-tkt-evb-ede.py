@@ -3038,6 +3038,7 @@ procesar_duplicados_y_normalizar()
 
 # --- 6. SNAPSHOT JSON EN DRIVE ---
 print("\n🗂️ Generando snapshot JSON en Drive...")
+try:
     df_final_limpio = obtener_df_de_sheets("Entradas auto", "Eventos")
         if df_final_limpio.empty:
             print('No se obtuvo el df_principal (Tabla limpia de sheets)')
