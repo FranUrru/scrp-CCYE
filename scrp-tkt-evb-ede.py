@@ -3040,8 +3040,8 @@ procesar_duplicados_y_normalizar()
 print("\n🗂️ Generando snapshot JSON en Drive...")
 try:
     df_final_limpio = obtener_df_de_sheets("Entradas auto", "Eventos")
-        if df_final_limpio.empty:
-            print('No se obtuvo el df_principal (Tabla limpia de sheets)')
+    if df_final_limpio.empty:
+        print('No se obtuvo el df_principal (Tabla limpia de sheets)')
     registros = df_final_limpio.to_dict(orient='records')
     contenido_json = json_lib.dumps(registros, ensure_ascii=False, indent=2)
 
