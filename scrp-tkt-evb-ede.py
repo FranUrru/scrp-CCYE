@@ -3069,7 +3069,10 @@ def obtener_df_de_sheets(nombre_tabla, nombre_hoja):
 # --- 6. SNAPSHOT JSON EN DRIVE ---
 print("\n🗂️ Generando snapshot JSON en Drive...")
 try:
-    
+    import os, json as json_lib, io
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaIoBaseUpload
     df_final_limpio = obtener_df_de_sheets("Entradas auto", "Eventos")
     if df_final_limpio.empty:
         print('No se obtuvo el df_principal (Tabla limpia de sheets)')
