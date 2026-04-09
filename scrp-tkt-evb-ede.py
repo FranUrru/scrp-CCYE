@@ -3093,26 +3093,29 @@ try:
     drive_service = build('drive', 'v3', credentials=creds)
     nombre_archivo = "snapshot_eventos.json"
 
-    # Buscar si ya existe para sobreescribir
-    resultado = drive_service.files().list(
-        q=f"name='{nombre_archivo}' and trashed=false",
-        fields="files(id, name)"
+CARPETA_ID = "1Ds_NaXnETHmocUGQ2RVsnnxEeXfiGf_R"
+
+# Buscar si ya existe dentro de esa carpeta
+resultado = drive_service.files().list(
+    q=f"name='{nombre_archivo}' and '{CARPETA_ID}' in parents and trashed=false",
+    fields="files(id, name)"
+).execute()
+archivos = resultado.get('files', [])
+
+if archivos:
+    file_id = archivos[0]['id']
+    drive_service.files().update(fileId=file_id, media_body=media).execute()
+    log(f"  ✅ Snapshot actualizado en Drive: {nombre_archivo} → {len(registros)} eventos")
+else:
+    drive_service.files().create(
+        body={
+            'name': nombre_archivo,
+            'mimeType': 'application/json',
+            'parents': [CARPETA_ID]
+        },
+        media_body=media
     ).execute()
-    archivos = resultado.get('files', [])
-
-    buffer = io.BytesIO(contenido_json.encode('utf-8'))
-    media = MediaIoBaseUpload(buffer, mimetype='application/json', resumable=False)
-
-    if archivos:
-        file_id = archivos[0]['id']
-        drive_service.files().update(fileId=file_id, media_body=media).execute()
-        log(f"  ✅ Snapshot actualizado en Drive (mismo archivo): {nombre_archivo} → {len(registros)} eventos")
-    else:
-        drive_service.files().create(
-            body={'name': nombre_archivo, 'mimeType': 'application/json'},
-            media_body=media
-        ).execute()
-        log(f"  ✅ Snapshot creado en Drive: {nombre_archivo} → {len(registros)} eventos")
+    log(f"  ✅ Snapshot creado en Drive: {nombre_archivo} → {len(registros)} eventos")
 
 except Exception as e:
     import traceback
