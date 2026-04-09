@@ -2630,7 +2630,8 @@ def procesar_duplicados_y_normalizar():
     # --- CIUDADES BLACKLIST (no permitidas) ---
     ciudades_blacklist = [
         r'neuqu[eé]n',
-        r'curitiba'
+        r'curitiba',
+        'huberman 1750'
     ]
 
     # --- FUNCIONES AUXILIARES INTERNAS ---
