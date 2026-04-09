@@ -762,7 +762,7 @@ def ejecutar_scraper_ticketek():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 log('TICKETEK')
-ejecutar_scraper_ticketek()
+#ejecutar_scraper_ticketek()
 
 ###########################################################################
 ################### EDEN ##################################################
@@ -1150,7 +1150,7 @@ def ejecutar_scraper_eden():
         return reporte
 log('')
 log('EDÉN')
-ejecutar_scraper_eden()
+#ejecutar_scraper_eden()
 
 ##################################################################################################################
 ####################################### EVENTBRITE ###############################################################
@@ -1404,7 +1404,7 @@ log('EVENTBRITE')
 for i in range(1, intentos_maximos + 1):
     try:
         print(f"🚀 Iniciando Eventbrite - Intento {i} de {intentos_maximos}...")
-        resultado_final = ejecutar_scraper_eventbrite()
+        resultado_final = #ejecutar_scraper_eventbrite()
         
         # Si llega aquí, es que funcionó (no hubo raise)
         print(f"✅ Intento {i} completado con éxito.")
@@ -1649,7 +1649,7 @@ def ejecutar_scraper_ferias_y_congresos():
 
 # Ejecución
 print("Iniciando Ferias y Congresos...")
-ejecutar_scraper_ferias_y_congresos()
+#ejecutar_scraper_ferias_y_congresos()
 
 
 log('')
@@ -1807,7 +1807,7 @@ def ejecutar_scraper_turismo_cba():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 
-ejecutar_scraper_turismo_cba()
+#ejecutar_scraper_turismo_cba()
 def ejecutar_scraper_autoentrada():
     import pandas as pd
     import time
@@ -1969,7 +1969,7 @@ def ejecutar_scraper_autoentrada():
 # --- LLAMADO (comentar para desactivar) ---
 log('')
 log('AUTOENTRADA')
-ejecutar_scraper_autoentrada()
+#ejecutar_scraper_autoentrada()
 
 #ENTE METROPOLITANO
 def ejecutar_scraper_metropolitano():
@@ -2154,7 +2154,7 @@ def ejecutar_scraper_metropolitano():
 # --- LLAMADO (comentar para desactivar) ---
 log('')
 log('METROPOLITANO')
-ejecutar_scraper_metropolitano()
+#ejecutar_scraper_metropolitano()
 
 def ejecutar_scraper_fcefyn():
     import pandas as pd
@@ -2417,7 +2417,7 @@ def ejecutar_scraper_fcefyn():
 # --- LLAMADO (comentar para desactivar) ---
 log('')
 log('FCEFYN')
-ejecutar_scraper_fcefyn()
+#ejecutar_scraper_fcefyn()
 
 def ejecutar_scraper_famaf():
     import pandas as pd
@@ -2606,7 +2606,7 @@ def ejecutar_scraper_famaf():
 # --- LLAMADO (comentar para desactivar) ---
 log('')
 log('FAMAF')
-ejecutar_scraper_famaf()
+#ejecutar_scraper_famaf()
 
 
 
@@ -3073,6 +3073,18 @@ try:
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaIoBaseUpload
+
+    secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
+    info_claves = json_lib.loads(secreto_json)
+    
+    # ← Redefinir creds acá, en este scope
+    creds = service_account.Credentials.from_service_account_info(
+        info_claves,
+        scopes=[
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+    )
     df_final_limpio = obtener_df_de_sheets("Entradas auto", "Eventos")
     if df_final_limpio.empty:
         print('No se obtuvo el df_principal (Tabla limpia de sheets)')
