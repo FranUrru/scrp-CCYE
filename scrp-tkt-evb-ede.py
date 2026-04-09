@@ -1353,7 +1353,7 @@ def ejecutar_scraper_eventbrite():
             
             df_final_data = df_filtrado[mask_fecha_ok].copy()
 
-            df_final, metricas_eb = aplicar_clasificador(
+            df_final_data, metricas_eb = aplicar_clasificador(
                 df=df_final,
                 col_nombre='Nombre',
                 col_lugar='Locación',
@@ -1367,7 +1367,7 @@ def ejecutar_scraper_eventbrite():
                     'Nombre': df_final_data['Nombre'],
                     'Locación': df_final_data['Locación'],
                     'Fecha Convertida': df_final_data['Fecha Convertida'].astype(str),
-                    'termina': "", 'tipo de evento': None, 'detalle': "", 'alcance': "",
+                    'termina': "", 'tipo de evento': df_final_data['tipo de evento'], 'detalle': "", 'alcance': "",
                     'Precio': 0.0, 'fuente': 'eventbrite', 'Origen': df_final_data['Origen'],
                     'Fecha Scrp': datetime.today().strftime('%Y-%m-%d')
                 })
