@@ -2499,7 +2499,7 @@ def ejecutar_scraper_famaf():
         eventos_procesados = []
         pagina = 1
         detener = False
-        primer_href_nueva_ejecucion = None
+        hrefs_nueva_ejecucion = []
 
         while not detener:
             url_pagina = f"{LISTA_URL}?page={pagina}"
@@ -2525,7 +2525,7 @@ def ejecutar_scraper_famaf():
                             break
 
                     if not nombre or not href: continue
-                    if primer_href_nueva_ejecucion is None: primer_href_nueva_ejecucion = href
+                    if len(hrefs_nueva_ejecucion) < 2: hrefs_nueva_ejecucion.append(href)
                     if ultimo_href_conocido and href == ultimo_href_conocido:
                         detener = True
                         break
@@ -2582,8 +2582,9 @@ def ejecutar_scraper_famaf():
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
             subir_a_google_sheets(df_final, 'FAMAF historico (Auto)', 'Hoja 1')
 
-            if primer_href_nueva_ejecucion:
-                guardar_memoria(primer_href_nueva_ejecucion, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            href_a_guardar = hrefs_nueva_ejecucion[1] if len(hrefs_nueva_ejecucion) >= 2 else (hrefs_nueva_ejecucion[0] if hrefs_nueva_ejecucion else None)
+            if href_a_guardar:
+                guardar_memoria(href_a_guardar, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
             reporte["filas_procesadas"] = len(df_final)
             reporte["estado"] = "Exitoso"
