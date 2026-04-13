@@ -2447,6 +2447,7 @@ def ejecutar_scraper_famaf():
     MEMORIA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memoria")
     os.makedirs(MEMORIA_DIR, exist_ok=True)
     MEMORIA_PATH = os.path.join(MEMORIA_DIR, "famaf_memoria.json")
+    print(f"Memoria en: {MEMORIA_PATH}")
 
     def cargar_memoria():
         if not os.path.exists(MEMORIA_PATH):
