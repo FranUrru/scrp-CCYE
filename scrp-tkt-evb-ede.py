@@ -1724,7 +1724,7 @@ def ejecutar_scraper_turismo_cba():
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         cards = soup.find_all('div', class_='card')
         eventos_lista = []
-        
+        cantidad_cards=1
         for card in cards:
             try:
                 # --- Link y Filtros ---
@@ -1735,9 +1735,10 @@ def ejecutar_scraper_turismo_cba():
                 nombre = card.find('h4', class_='card-title').get_text(strip=True) if card.find('h4') else "Sin Nombre"
                 locacion = card.find('p', class_='lugar').get_text(strip=True) if card.find('p', class_='lugar') else ""
 
-                print(f"\n  [{i}/{len(cards)}] 🎭 Procesando: '{nombre}'")
+                print(f"\n  [{cantidad_cards}/{len(cards)}] 🎭 Procesando: '{nombre}'")
                 print(f"            📍 Lugar : {locacion or '(sin lugar)'}")
                 print(f"            🔗 Link  : {fuente_link}")
+                cantidad_cards=cantidad_cars + 1
                 
                 # Filtrado por plataformas ya cubiertas
                 if any(p in fuente_link for p in exclusiones):
