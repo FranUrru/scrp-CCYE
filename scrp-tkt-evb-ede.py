@@ -1701,7 +1701,9 @@ def ejecutar_scraper_turismo_cba():
         exclusiones = ["edenentradas", "ticketek", "quality"]
         
         driver.get(url_agenda)
+        print('Turismo Driver iniciado)
         print(f"🚀 {reporte['nombre']}: Cargando y expandiendo agenda...")
+        clicks=0
 
         # 1. Expandir contenido "Cargar Más"
         while True:
@@ -1712,6 +1714,8 @@ def ejecutar_scraper_turismo_cba():
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", boton)
                 time.sleep(1)
                 driver.execute_script("arguments[0].click();", boton)
+                clicks += 1
+                print(f"🔄 Click #{clicks} en 'Cargar Más' — esperando contenido...") 
                 time.sleep(3)
             except:
                 break # No hay más botón
@@ -1730,6 +1734,10 @@ def ejecutar_scraper_turismo_cba():
                 # --- Nombre y Locación ---
                 nombre = card.find('h4', class_='card-title').get_text(strip=True) if card.find('h4') else "Sin Nombre"
                 locacion = card.find('p', class_='lugar').get_text(strip=True) if card.find('p', class_='lugar') else ""
+
+                print(f"\n  [{i}/{len(cards)}] 🎭 Procesando: '{nombre}'")
+                print(f"            📍 Lugar : {locacion or '(sin lugar)'}")
+                print(f"            🔗 Link  : {fuente_link}")
                 
                 # Filtrado por plataformas ya cubiertas
                 if any(p in fuente_link for p in exclusiones):
@@ -1740,6 +1748,8 @@ def ejecutar_scraper_turismo_cba():
                 fechas_p = card.find_all('p', class_='fs-4')
                 inicio_raw = fechas_p[0].get_text(" ", strip=True).replace("hs", "").strip() if len(fechas_p) > 0 else ""
                 fin_raw = fechas_p[1].get_text(" ", strip=True).replace("hs", "").strip() if len(fechas_p) > 1 else ""
+                print(f"            📅 Inicio raw : '{inicio_raw}'")
+                print(f"            📅 Fin raw    : '{fin_raw}'")
                 
                 fecha_inicio = formatear_fecha(inicio_raw)
                 fecha_fin = formatear_fecha(fin_raw)
