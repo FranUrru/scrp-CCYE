@@ -1701,7 +1701,7 @@ def ejecutar_scraper_turismo_cba():
         exclusiones = ["edenentradas", "ticketek", "quality"]
         
         driver.get(url_agenda)
-        print('Turismo Driver iniciado)
+        print('Turismo Driver iniciado')
         print(f"🚀 {reporte['nombre']}: Cargando y expandiendo agenda...")
         clicks=0
 
