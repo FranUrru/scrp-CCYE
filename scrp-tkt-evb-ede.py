@@ -2948,6 +2948,7 @@ def procesar_duplicados_y_normalizar():
         # --- 2. PROCESAMIENTO DE FECHAS ---
         print("\n📅 Procesando fechas...")
         df_principal['Comienza_DT'] = pd.to_datetime(df_principal['Comienza'], errors='coerce').dt.date
+        df_principal['Comienza_DTM'] = pd.to_datetime(df_principal['Comienza'], errors='coerce')  # ← datetime completo
         fechas_invalidas = df_principal['Comienza_DT'].isna().sum()
         print(f"  ✅ Fechas procesadas. Fechas inválidas/nulas: {fechas_invalidas}")
 
@@ -2989,7 +2990,18 @@ def procesar_duplicados_y_normalizar():
                 mismo_lugar = (str(fila_a['Lugar_Norm']) == str(fila_b['Lugar_Norm'])) and fila_a['Lugar_Norm'] != ""
                 misma_fecha = (fila_a['Comienza_DT'] == fila_b['Comienza_DT'])
 
-                if mismo_lugar and misma_fecha:
+                FUENTE_CON_HORA = "Agencia Turismo Cba"
+                ambos_agencia = (
+                    str(fila_a.get('Fuente', '')) == FUENTE_CON_HORA and
+                    str(fila_b.get('Fuente', '')) == FUENTE_CON_HORA
+                )
+                if ambos_agencia:
+                    misma_hora = (fila_a['Comienza_DTM'] == fila_b['Comienza_DTM'])
+                    es_duplicado = mismo_lugar and misma_fecha and misma_hora
+                else:
+                    es_duplicado = mismo_lugar and misma_fecha
+                
+                if es_duplicado:
                     grupo_actual_indices.append(j)
 
             if len(grupo_actual_indices) > 1:
