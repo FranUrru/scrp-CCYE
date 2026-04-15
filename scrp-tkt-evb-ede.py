@@ -3021,7 +3021,7 @@ def procesar_duplicados_y_normalizar():
 
                     ev = row.copy()
                     ev['id_dup'] = f"{prox_id_num}{letras[idx]}"
-                    duplicados_para_registro.append(ev.drop(['Lugar_Norm', 'Comienza_DT', 'prioridad'], errors='ignore'))
+                    duplicados_para_registro.append(ev.drop(['Lugar_Norm', 'Comienza_DT','Comienza_DTM', 'prioridad'], errors='ignore'))
 
                     if idx > 0:
                         tabla_dest = dict_fuentes.get(ev['Fuente'])
