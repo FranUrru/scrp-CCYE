@@ -1738,7 +1738,7 @@ def ejecutar_scraper_turismo_cba():
                 print(f"\n  [{cantidad_cards}/{len(cards)}] 🎭 Procesando: '{nombre}'")
                 print(f"            📍 Lugar : {locacion or '(sin lugar)'}")
                 print(f"            🔗 Link  : {fuente_link}")
-                cantidad_cards=cantidad_cars + 1
+                cantidad_cards=cantidad_cards + 1
                 
                 # Filtrado por plataformas ya cubiertas
                 if any(p in fuente_link for p in exclusiones):
