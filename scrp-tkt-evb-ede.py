@@ -1698,7 +1698,7 @@ def ejecutar_scraper_turismo_cba():
     try:
         driver = iniciar_driver() # Usa tu función global
         url_agenda = "https://turismo.cordoba.gob.ar/agenda/agenda-turistica"
-        exclusiones = ["edenentradas", "ticketek", "quality"]
+        exclusiones = ["edenentradas", "ticketek", "quality","autoentrada"]
         
         driver.get(url_agenda)
         print('Turismo Driver iniciado')
