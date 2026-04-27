@@ -2671,7 +2671,8 @@ dict_fuentes = {
     'Autoentrada': 'Autoentrada historico (Auto)',
     'Agencia Turismo Cba': 'Turismo CBA (Auto)',
     'Ente Metropolitano': 'Metropolitano historico (Auto)',
-    'eventbrite': 'base_h_scrp_eventbrite'
+    'eventbrite': 'base_h_scrp_eventbrite',
+    'AFA': 'Fixture Fútbol Córdoba'
 }
 
 def procesar_duplicados_y_normalizar():
