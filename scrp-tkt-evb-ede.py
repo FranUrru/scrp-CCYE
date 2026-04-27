@@ -2599,7 +2599,7 @@ def ejecutar_scraper_famaf():
 
         if eventos_procesados:
             df_final = pd.DataFrame(eventos_procesados)
-            df_final = df_final.astype(str).replace('None', '').replace('nan', ''
+            df_final = df_final.astype(str).replace('None', '').replace('nan', '')
             df_final = df_final.drop_duplicates(subset=['Origen'])
 
             # --- FILTRO 1: Por Origen (contiene 'academica') ---
