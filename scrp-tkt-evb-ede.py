@@ -769,7 +769,6 @@ def ejecutar_scraper_ticketek():
         df_final['finaliza'] = df_final['date']
         df_final['fecha de carga'] = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
         df_final['price_avg'] = df_final['price_avg'].astype(str).str.replace("'", "", regex=False).astype(float)
-        df_final.insert(0, 'ID', df_final['href'].apply(lambda x: generar_id(x, 'TKT')))
         df_final, metricas_tkt = aplicar_clasificador(
             df=df_final,
             col_nombre='title',
@@ -1044,10 +1043,12 @@ def ejecutar_scraper_eden():
         data_df = pd.DataFrame(data)
         data_df = data_df.dropna(subset=['Locación', 'href']).drop_duplicates(subset=['href']).reset_index(drop=True)
         log(f"📊 Eden: {len(data_df)} eventos únicos detectados")
+        print(f"Eden: Iniciando procesamiento de {len(data_df)} eventos")
 
         # 3. Recorrido de detalles
         for index, row in data_df.iterrows():
             full_href = f"{BASE_URL}{row['href'].replace('..', '')}"
+            print(f"Eden: Procesando evento {index+1}/{len(data_df)}: {row['Nombre']} - {full_href}")
             try:
                 driver.get(full_href)
                 time.sleep(3)
@@ -1103,6 +1104,8 @@ def ejecutar_scraper_eden():
             print("\n✅ Fin diagnóstico df_norm")
             # === DEBUG FIN ===
             df_norm = procesar_dataframe_complejo(df_filtrado, columna_fecha='Fecha')
+            print(f"Eden: df_norm procesado con {len(df_norm)} filas")
+            
             # === DEBUG INICIO ===
             print("\n📋 df_norm.dtypes:")
             print(df_norm.dtypes)
@@ -1153,7 +1156,7 @@ def ejecutar_scraper_eden():
                 'Origen': df_norm['href'].apply(lambda x: f"https://www.edenentradas.ar{str(x).replace('..', '')}"),
                 'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S') 
             })
-            df_final.insert(0, 'ID', df_final['Origen'].apply(lambda x: generar_id(x, 'EDE')))
+            print(f"Eden: df_final creado con {len(df_final)} filas")
             # BLINDAJE FINAL: Convertimos todo el DF a string para evitar errores en el Clasificador
             df_final = df_final.astype(str).replace('None', '').replace('nan', '')
             df_final = df_final.drop_duplicates(subset=['Origen'])
@@ -1162,6 +1165,7 @@ def ejecutar_scraper_eden():
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
             
             log(f"🤖 Eden — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
+            print(f"Eden: Subiendo {len(df_final)} eventos a Sheets")
             subir_a_google_sheets(df_final, 'Eden historico (Auto)', 'Hoja 1')
             
             reporte["filas_procesadas"] = len(df_final)
@@ -1394,12 +1398,10 @@ def ejecutar_scraper_eventbrite():
                 col_tipo_evento='tipo de evento',
                 col_confianza='confianza_clasificacion'
             )
-            df_final.insert(0, 'ID', df_final['Origen'].apply(lambda x: generar_id(x, 'EVB')))
             log(f"🤖 Eventbrite — Predicciones: {metricas_eb['predicciones']} | Confianza promedio: {metricas_eb['confianza_promedio']}")
             
             if not df_final_data.empty:
                 df_final = pd.DataFrame({
-                    'ID': df_final_data['ID'],
                     'Nombre': df_final_data['Nombre'],
                     'Locación': df_final_data['Locación'],
                     'Fecha Convertida': df_final_data['Fecha Convertida'].astype(str),
@@ -1661,7 +1663,6 @@ def ejecutar_scraper_ferias_y_congresos():
                 col_tipo_evento='Tipo de evento',
                 col_confianza='confianza_clasificacion'
             )
-            df_final.insert(0, 'ID', generar_ids_con_sufijo(df_final, 'Origen', 'FYC'))
             log(f"🤖 Ferias y Congresos — Predicciones: {metricas_fc['predicciones']} | Confianza promedio: {metricas_fc['confianza_promedio']}")
             
             # Subida a Sheets
@@ -1820,7 +1821,6 @@ def ejecutar_scraper_turismo_cba():
 
         # 3. Procesamiento final y subida
         df_final = pd.DataFrame(eventos_lista)
-        df_final.insert(0, 'ID', df_final['Origen'].apply(lambda x: generar_id(x, 'TCB')))
 
         df_final, metricas_fc = aplicar_clasificador(
             df=df_final,
@@ -2170,7 +2170,6 @@ def ejecutar_scraper_metropolitano():
             df_final = pd.DataFrame(eventos_procesados)
             df_final = df_final.astype(str).replace('None', '').replace('nan', '')
             df_final = df_final.drop_duplicates(subset=['Origen'])
-            df_final.insert(0, 'ID', df_final['Origen'].apply(lambda x: generar_id(x, 'TCB')))
 
             # Preview local
             print(f"\n📋 df_final — {len(df_final)} filas x {len(df_final.columns)} columnas")
@@ -2396,7 +2395,6 @@ def ejecutar_scraper_fcefyn():
             df_final = pd.DataFrame(eventos_procesados)
             df_final = df_final.astype(str).replace('None', '').replace('nan', '')
             df_final = df_final.drop_duplicates(subset=['Origen'])
-            df_final.insert(0, 'ID', df_final['Origen'].apply(lambda x: generar_id(x, 'FCE')))
 
             # --- FILTRO 0: Por fecha ---
             ANIO_MINIMO = 2025
@@ -2601,9 +2599,8 @@ def ejecutar_scraper_famaf():
 
         if eventos_procesados:
             df_final = pd.DataFrame(eventos_procesados)
-            df_final = df_final.astype(str).replace('None', '').replace('nan', '')
+            df_final = df_final.astype(str).replace('None', '').replace('nan', ''
             df_final = df_final.drop_duplicates(subset=['Origen'])
-            df_final.insert(0, 'ID', df_final['Origen'].apply(lambda x: generar_id(x, 'FAM')))
 
             # --- FILTRO 1: Por Origen (contiene 'academica') ---
             mask_academica = df_final['Origen'].str.contains(PATRON_ORIGEN_ACADEMICA, case=False, na=False)
@@ -2863,6 +2860,101 @@ def procesar_duplicados_y_normalizar():
                     print(f"    ❌ Error normalizando lugar en '{nombre_tabla}': {e}")
                     return
                 
+    def actualizar_id_en_sheet(nombre_tabla, nombre_hoja, origen_link, nuevo_id,
+                               nombre_evento=None, fecha_evento=None,
+                               max_reintentos=4, cooldown_base=65):
+        import os, json, time, gspread
+        from google.oauth2 import service_account
+    
+        secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
+        if not secreto_json:
+            print(f"    ❌ No se encontró GCP_SERVICE_ACCOUNT_JSON")
+            return
+    
+        for intento in range(1, max_reintentos + 1):
+            try:
+                info_claves = json.loads(secreto_json)
+                creds = service_account.Credentials.from_service_account_info(
+                    info_claves, scopes=[
+                        "https://www.googleapis.com/auth/spreadsheets",
+                        "https://www.googleapis.com/auth/drive"
+                    ]
+                )
+                client = gspread.authorize(creds)
+                sheet = client.open(nombre_tabla).worksheet(nombre_hoja)
+    
+                data = sheet.get_all_values()
+                if len(data) <= 1:
+                    print(f"    ⚠️ Hoja '{nombre_tabla}' vacía.")
+                    return
+    
+                headers = data[0]
+                df_temp = pd.DataFrame(data[1:], columns=headers)
+    
+                if 'ID' not in headers:
+                    print(f"    ❌ No se encontró columna 'ID' en '{nombre_tabla}'")
+                    return
+                col_id_idx = headers.index('ID') + 1
+    
+                columnas_posibles = ['Origen', 'href', 'Link', 'URL']
+                col_origen = next((c for c in columnas_posibles if c in headers), None)
+                if not col_origen:
+                    print(f"    ❌ No se encontró columna de Origen en '{nombre_tabla}'")
+                    return
+    
+                # --- Buscar fila: primero intentar por origen único,
+                #     si hay más de un match usar nombre+fecha como desempate ---
+                match_por_origen = df_temp.index[
+                    df_temp[col_origen].astype(str) == str(origen_link)
+                ].tolist()
+    
+                if len(match_por_origen) == 0:
+                    print(f"    ⚠️ Link no encontrado en '{nombre_tabla}': {origen_link}")
+                    return
+    
+                elif len(match_por_origen) == 1:
+                    # Origen único → comportamiento original
+                    match_idx = match_por_origen
+    
+                else:
+                    # Origen compartido → desempatar por nombre + fecha
+                    if nombre_evento is None or fecha_evento is None:
+                        print(f"    ⚠️ Origen compartido en '{nombre_tabla}' pero no se pasó nombre/fecha. Se omite.")
+                        return
+    
+                    col_nombre = next((c for c in ['Eventos', 'Nombre', 'Titulo', 'Title'] if c in headers), None)
+                    col_fecha  = next((c for c in ['Comienza', 'Fecha', 'Date', 'Start']   if c in headers), None)
+    
+                    if not col_nombre or not col_fecha:
+                        print(f"    ⚠️ No se encontraron columnas nombre/fecha en '{nombre_tabla}'. Se omite.")
+                        return
+    
+                    mask = (
+                        (df_temp[col_origen].astype(str)  == str(origen_link))   &
+                        (df_temp[col_nombre].astype(str)  == str(nombre_evento)) &
+                        (df_temp[col_fecha].astype(str)   == str(fecha_evento))
+                    )
+                    match_idx = df_temp.index[mask].tolist()
+    
+                    if not match_idx:
+                        print(f"    ⚠️ Sin match por nombre+fecha en '{nombre_tabla}': '{nombre_evento}' / {fecha_evento}")
+                        return
+    
+                fila_sheet = match_idx[0] + 2  # +1 header, +1 base 1
+                sheet.update_cell(fila_sheet, col_id_idx, nuevo_id)
+                print(f"    ✏️ ID actualizado en '{nombre_tabla}' fila {fila_sheet}: '{nuevo_id}'")
+                return
+    
+            except Exception as e:
+                es_429 = '429' in str(e) or 'Quota exceeded' in str(e)
+                if es_429 and intento < max_reintentos:
+                    espera = cooldown_base * intento
+                    print(f"    ⏳ Rate limit (429) en '{nombre_tabla}'. Esperando {espera}s antes del intento {intento+1}/{max_reintentos}...")
+                    time.sleep(espera)
+                else:
+                    print(f"    ❌ Error actualizando ID en '{nombre_tabla}': {e}")
+                    return
+                
     # --- CUERPO PRINCIPAL ---
     try:
         print("\n📥 Cargando datos principales de Sheets...")
@@ -2873,6 +2965,52 @@ def procesar_duplicados_y_normalizar():
 
         print(f"📋 Total de eventos cargados: {len(df_principal)}")
         print(f"📌 Columnas disponibles: {list(df_principal.columns)}")
+
+        # --- GENERACIÓN DE IDs FALTANTES ---
+        print("\n🆔 Generando IDs faltantes...")
+        mapeo_prefijos = {
+            'Ticketek': 'TKT',
+            'Eden Entradas': 'EDE',
+            'eventbrite': 'EVB',
+            'FAMAF': 'FAM',
+            'FCEyN': 'FCE',
+            'FCEFyN': 'FCF',
+            'Ferias y Congresos': 'FYC',
+            'Autoentrada': 'AUT',
+            'Agencia Turismo Cba': 'TCB',
+            'Ente Metropolitano': 'TCM',
+            'AFA': 'AFA',
+        }
+        ids_generados = 0
+        fuentes_con_sufijos = ['Ferias y Congresos', 'AFA']
+        for fuente in mapeo_prefijos.keys():
+            if fuente in fuentes_con_sufijos:
+                # Para fuentes con mismo URL, usar sufijos
+                df_fuente = df_principal[df_principal['Fuente'] == fuente].copy()
+                if not df_fuente.empty:
+                    prefijo = mapeo_prefijos[fuente]
+                    ids_serie = generar_ids_con_sufijo(df_fuente, 'Origen', prefijo)
+                    for idx, nuevo_id in zip(df_fuente.index, ids_serie):
+                        if pd.isna(df_principal.at[idx, 'ID']) or str(df_principal.at[idx, 'ID']).strip() == '':
+                            df_principal.at[idx, 'ID'] = nuevo_id
+                            ids_generados += 1
+                            tabla_origen = dict_fuentes.get(fuente)
+                            if tabla_origen:
+                                actualizar_id_en_sheet(tabla_origen, "Hoja 1", df_principal.at[idx, 'Origen'], nuevo_id, nombre_evento=df_principal.at[idx, 'Eventos'], fecha_evento=df_principal.at[idx, 'Comienza'])
+            else:
+                # Para otras fuentes, IDs únicos por URL
+                df_fuente = df_principal[df_principal['Fuente'] == fuente]
+                for idx, row in df_fuente.iterrows():
+                    if pd.isna(row.get('ID')) or str(row.get('ID', '')).strip() == '':
+                        prefijo = mapeo_prefijos.get(fuente, 'EVT')
+                        origen = str(row.get('Origen', ''))
+                        nuevo_id = generar_id(origen, prefijo)
+                        df_principal.at[idx, 'ID'] = nuevo_id
+                        ids_generados += 1
+                        tabla_origen = dict_fuentes.get(fuente)
+                        if tabla_origen:
+                            actualizar_id_en_sheet(tabla_origen, "Hoja 1", row['Origen'], nuevo_id, nombre_evento=row.get('Eventos'), fecha_evento=row.get('Comienza'))
+        print(f"  ✅ IDs generados: {ids_generados}")
 
         # --- DataFrame para rechazados ---
         df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link'])
