@@ -5,6 +5,40 @@ from googleapiclient.discovery import build
 import os
 import joblib
 import pandas as pd
+import hashlib
+import string
+
+def _numero_a_sufijo(n: int) -> str:
+    """
+    Convierte un entero >= 0 a sufijo alfabético estilo Excel:
+    0→A, 1→B, …, 25→Z, 26→AA, 27→AB, …, 701→ZZ, 702→AAA, …
+    Escala infinitamente sin límite de dígitos.
+    """
+    letras = string.ascii_uppercase
+    resultado = []
+    n += 1  # Hacemos 1-indexed internamente
+    while n > 0:
+        n, resto = divmod(n - 1, 26)
+        resultado.append(letras[resto])
+    return "".join(reversed(resultado))
+
+def generar_id(url: str, prefijo: str = "EVT") -> str:
+    """Genera un ID único y estable basado en la URL del evento."""
+    hash_corto = hashlib.md5(str(url).encode()).hexdigest()[:8].upper()
+    return f"{prefijo}-{hash_corto}"
+
+def generar_ids_con_sufijo(df: pd.DataFrame, col_url: str, prefijo: str) -> pd.Series:
+    """
+    Para scrapers donde todos los eventos comparten la misma URL
+    (ej: Ferias y Congresos), genera IDs con sufijo A, B, C... AA, AB...
+    El hash se toma de la URL base, el sufijo diferencia cada fila.
+    """
+    url_base = str(df[col_url].iloc[0]) if not df.empty else "sin-url"
+    hash_corto = hashlib.md5(url_base.encode()).hexdigest()[:8].upper()
+    return pd.Series(
+        [f"{prefijo}-{hash_corto}-{_numero_a_sufijo(i)}" for i in range(len(df))],
+        index=df.index
+    )
 
 def log(mensaje):
     timestamp = datetime.now().strftime('%H:%M:%S')
@@ -560,7 +594,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
                 
                 else:
                     # Caso C: Lógica estándar por ID (Origen, href, etc.)
-                    columnas_id = ['Origen', 'href', 'Link', 'URL']
+                    columnas_id = ['ID','Origen', 'href', 'Link', 'URL']
                     id_col = next((c for c in columnas_id if c in df_entrada.columns), None)
                     
                     if id_col and id_col in existing_df.columns:
@@ -584,7 +618,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
                     if es_ferias_auto:
                         combined_df = combined_df.drop_duplicates(subset=['Eventos'], keep='first')
                     else:
-                        columnas_id = ['Origen', 'href', 'Link', 'URL']
+                        columnas_id = ['ID','Origen', 'href', 'Link', 'URL']
                         id_col_final = next((c for c in columnas_id if c in combined_df.columns), None)
                         if id_col_final:
                             combined_df = combined_df.drop_duplicates(subset=[id_col_final], keep='first')
@@ -735,7 +769,7 @@ def ejecutar_scraper_ticketek():
         df_final['finaliza'] = df_final['date']
         df_final['fecha de carga'] = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
         df_final['price_avg'] = df_final['price_avg'].astype(str).str.replace("'", "", regex=False).astype(float)
-
+        df_final.insert(0, 'ID', df_final['href'].apply(lambda x: generar_id(x, 'TKT')))
         df_final, metricas_tkt = aplicar_clasificador(
             df=df_final,
             col_nombre='title',
@@ -1119,7 +1153,7 @@ def ejecutar_scraper_eden():
                 'Origen': df_norm['href'].apply(lambda x: f"https://www.edenentradas.ar{str(x).replace('..', '')}"),
                 'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S') 
             })
-            
+            df_final.insert(0, 'ID', df_final['Origen'].apply(lambda x: generar_id(x, 'EDE')))
             # BLINDAJE FINAL: Convertimos todo el DF a string para evitar errores en el Clasificador
             df_final = df_final.astype(str).replace('None', '').replace('nan', '')
             df_final = df_final.drop_duplicates(subset=['Origen'])
@@ -1360,6 +1394,7 @@ def ejecutar_scraper_eventbrite():
                 col_tipo_evento='tipo de evento',
                 col_confianza='confianza_clasificacion'
             )
+            df_final.insert(0, 'ID', df_final['Origen'].apply(lambda x: generar_id(x, 'EVB')))
             log(f"🤖 Eventbrite — Predicciones: {metricas_eb['predicciones']} | Confianza promedio: {metricas_eb['confianza_promedio']}")
             
             if not df_final_data.empty:
@@ -1625,6 +1660,7 @@ def ejecutar_scraper_ferias_y_congresos():
                 col_tipo_evento='Tipo de evento',
                 col_confianza='confianza_clasificacion'
             )
+            df_final.insert(0, 'ID', generar_ids_con_sufijo(df_final, 'Origen', 'FYC'))
             log(f"🤖 Ferias y Congresos — Predicciones: {metricas_fc['predicciones']} | Confianza promedio: {metricas_fc['confianza_promedio']}")
             
             # Subida a Sheets
@@ -1783,6 +1819,7 @@ def ejecutar_scraper_turismo_cba():
 
         # 3. Procesamiento final y subida
         df_final = pd.DataFrame(eventos_lista)
+        df_final.insert(0, 'ID', df_final['Origen'].apply(lambda x: generar_id(x, 'TCB')))
 
         df_final, metricas_fc = aplicar_clasificador(
             df=df_final,
@@ -2132,6 +2169,7 @@ def ejecutar_scraper_metropolitano():
             df_final = pd.DataFrame(eventos_procesados)
             df_final = df_final.astype(str).replace('None', '').replace('nan', '')
             df_final = df_final.drop_duplicates(subset=['Origen'])
+            df_final.insert(0, 'ID', df_final['Origen'].apply(lambda x: generar_id(x, 'TCB')))
 
             # Preview local
             print(f"\n📋 df_final — {len(df_final)} filas x {len(df_final.columns)} columnas")
@@ -2357,6 +2395,7 @@ def ejecutar_scraper_fcefyn():
             df_final = pd.DataFrame(eventos_procesados)
             df_final = df_final.astype(str).replace('None', '').replace('nan', '')
             df_final = df_final.drop_duplicates(subset=['Origen'])
+            df_final.insert(0, 'ID', df_final['Origen'].apply(lambda x: generar_id(x, 'FCE')))
 
             # --- FILTRO 0: Por fecha ---
             ANIO_MINIMO = 2025
@@ -2563,6 +2602,7 @@ def ejecutar_scraper_famaf():
             df_final = pd.DataFrame(eventos_procesados)
             df_final = df_final.astype(str).replace('None', '').replace('nan', '')
             df_final = df_final.drop_duplicates(subset=['Origen'])
+            df_final.insert(0, 'ID', df_final['Origen'].apply(lambda x: generar_id(x, 'FAM')))
 
             # --- FILTRO 1: Por Origen (contiene 'academica') ---
             mask_academica = df_final['Origen'].str.contains(PATRON_ORIGEN_ACADEMICA, case=False, na=False)
