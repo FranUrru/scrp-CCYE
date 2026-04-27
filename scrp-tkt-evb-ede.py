@@ -1399,6 +1399,7 @@ def ejecutar_scraper_eventbrite():
             
             if not df_final_data.empty:
                 df_final = pd.DataFrame({
+                    'ID': df_final_data['ID'],
                     'Nombre': df_final_data['Nombre'],
                     'Locación': df_final_data['Locación'],
                     'Fecha Convertida': df_final_data['Fecha Convertida'].astype(str),
