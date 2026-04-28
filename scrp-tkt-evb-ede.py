@@ -1016,17 +1016,22 @@ def ejecutar_scraper_eden():
         df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
 
     try:
+        print("Eden: iniciar ejecutar_scraper_eden")
         driver = iniciar_driver()
+        print("Eden: iniciar_driver completado")
         BASE_URL = "https://www.edenentradas.ar"
+        print(f"Eden: navegando a {BASE_URL}/")
         driver.get(BASE_URL + "/")
-        print("Eden: Driver iniciado")
+        print("Eden: Driver iniciado y página principal solicitada")
         time.sleep(5)
 
         # 2. Scrapeo de lista principal
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         eventos_html = soup.find_all('div', class_='grid_element')
+        print(f"Eden: elementos 'grid_element' encontrados: {len(eventos_html)}")
         
         if not eventos_html:
+            print("Eden: no se detectaron eventos en la página principal")
             registrar_rechazo("Página Principal", "N/A", "N/A", "No se detectaron elementos grid_element", "46", "Eden", BASE_URL)
             return reporte
 
@@ -1071,15 +1076,20 @@ def ejecutar_scraper_eden():
                     driver.execute_script("arguments[0].click();", btn)
                     time.sleep(2)
                     data_df.loc[index, 'precio_promedio'] = extraer_promedio_precios(BeautifulSoup(driver.page_source, 'html.parser'))
-                except:
+                    print(f"Eden: precio promedio extraído para evento {index+1}")
+                except Exception as e:
                     data_df.loc[index, 'precio_promedio'] = None
+                    print(f"Eden: no se pudo extraer precio promedio para evento {index+1} ({row['Nombre']}): {e}")
 
             except Exception as e:
                 registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], f"Error detalle: {str(e)}", "102", "Eden", full_href)
+                print(f"Eden: excepción detalle evento {index+1} ({row['Nombre']}): {e}")
                 continue
 
         # 4. Filtrado y Normalización
+        print("Eden: aplicando filtro de ciudad Córdoba a los eventos")
         df_filtrado = data_df[data_df['filtro_ciudad'].str.contains('Córdoba|Cordoba|Cba', case=False, na=False)].copy()
+        print(f"Eden: eventos después de filtro de ciudad: {len(df_filtrado)}")
         
         if not df_filtrado.empty:
             print(f"⚙️ Normalizando {len(df_filtrado)} eventos...")
@@ -1137,6 +1147,7 @@ def ejecutar_scraper_eden():
 
         # 5. Formateo Final
         if not df_norm.empty:
+            print(f"Eden: df_norm contiene {len(df_norm)} filas y se empieza a formatear a df_final")
             df_norm = df_norm.apply(lambda col: 
                 col.dt.strftime('%Y-%m-%d %H:%M:%S') 
                 if pd.api.types.is_datetime64_any_dtype(col) 
@@ -1179,12 +1190,15 @@ def ejecutar_scraper_eden():
             subir_a_google_sheets(df_rechazados.astype(str), 'Rechazados', 'Eventos')
 
     except Exception as e:
-        print(f"❌ ERROR CRÍTICO EN EDÉN: {e}")
+        print(f"❌ ERROR CRÍTICO EN EDÉN: {type(e).__name__}: {e}")
         reporte["estado"] = "Fallido"
         reporte["error"] = str(e)
         
     finally:
-        if driver: driver.quit()
+        if driver:
+            print("Eden: cerrando driver")
+            driver.quit()
+        print(f"Eden: finalizar ejecutar_scraper_eden con estado {reporte['estado']}")
         return reporte
 log('')
 log('EDÉN')
