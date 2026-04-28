@@ -1023,7 +1023,32 @@ def ejecutar_scraper_eden():
         print(f"Eden: navegando a {BASE_URL}/")
         driver.get(BASE_URL + "/")
         print("Eden: Driver iniciado y página principal solicitada")
-        time.sleep(5)
+        time.sleep(3)
+
+        # 2. Hacer scroll para cargar elementos dinámicamente
+        print("Eden: iniciando scroll para cargar elementos dinámicamente...")
+        from selenium.webdriver.common.keys import Keys
+        
+        ultima_altura = driver.execute_script("return document.body.scrollHeight")
+        scrolls = 0
+        max_scrolls = 10
+        
+        while scrolls < max_scrolls:
+            # Scroll hacia abajo
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)
+            scrolls += 1
+            
+            # Calcular nueva altura después del scroll
+            nueva_altura = driver.execute_script("return document.body.scrollHeight")
+            
+            # Si no hay más contenido para cargar, salir del loop
+            if nueva_altura == ultima_altura:
+                print(f"Eden: no hay más contenido después de {scrolls} scrolls")
+                break
+            
+            ultima_altura = nueva_altura
+            print(f"Eden: scroll {scrolls}/{max_scrolls} completado")
 
         # 2. Scrapeo de lista principal
         soup = BeautifulSoup(driver.page_source, 'html.parser')
