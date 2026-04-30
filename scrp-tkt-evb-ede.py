@@ -3314,16 +3314,83 @@ def obtener_df_de_sheets(nombre_tabla, nombre_hoja):
 
 # --- 6. SNAPSHOT JSON EN DRIVE ---
 print("\n🗂️ Generando snapshot JSON en Drive...")
-try:
-    import os, json as json_lib, io
-    from google.oauth2 import service_account
-    from googleapiclient.discovery import build
-    from googleapiclient.http import MediaIoBaseUpload
 
+import os, json as json_lib, io, time
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+
+MAX_INTENTOS = 10
+ESPERA_BASE = 15  # segundos
+
+def obtener_df_con_reintentos(sheet_name, tab_name, max_intentos=MAX_INTENTOS):
+    """Lee el DataFrame con reintentos ante errores 429."""
+    for intento in range(1, max_intentos + 1):
+        try:
+            df = obtener_df_de_sheets(sheet_name, tab_name)
+            if not df.empty:
+                print(f"  ✅ DataFrame leído correctamente ({len(df)} filas) en intento {intento}")
+                return df
+            else:
+                print(f"  ⚠️ DataFrame vacío en intento {intento}")
+        except Exception as e:
+            espera = ESPERA_BASE * intento  # espera lineal creciente: 15s, 30s, 45s...
+            if "429" in str(e) or "Quota" in str(e):
+                print(f"  ⏳ [Intento {intento}/{max_intentos}] Cuota excedida. Esperando {espera}s... ({e})")
+            else:
+                print(f"  ❌ [Intento {intento}/{max_intentos}] Error inesperado: {e}. Esperando {espera}s...")
+            if intento < max_intentos:
+                time.sleep(espera)
+            else:
+                print("  ❌ Se agotaron los intentos para leer el DataFrame.")
+                raise
+    return None
+
+def subir_json_con_reintentos(drive_service, contenido_json, nombre_archivo, carpeta_id, max_intentos=MAX_INTENTOS):
+    """Sube o actualiza el JSON en Drive con reintentos."""
+    for intento in range(1, max_intentos + 1):
+        try:
+            buffer = io.BytesIO(contenido_json.encode('utf-8'))
+            media = MediaIoBaseUpload(buffer, mimetype='application/json', resumable=False)
+
+            resultado = drive_service.files().list(
+                q=f"name='{nombre_archivo}' and '{carpeta_id}' in parents and trashed=false",
+                fields="files(id, name)"
+            ).execute()
+            archivos = resultado.get('files', [])
+
+            if archivos:
+                file_id = archivos[0]['id']
+                drive_service.files().update(fileId=file_id, media_body=media).execute()
+                print(f"  ✅ [Intento {intento}] Snapshot ACTUALIZADO en Drive: {nombre_archivo}")
+            else:
+                drive_service.files().create(
+                    body={
+                        'name': nombre_archivo,
+                        'mimeType': 'application/json',
+                        'parents': [carpeta_id]
+                    },
+                    media_body=media
+                ).execute()
+                print(f"  ✅ [Intento {intento}] Snapshot CREADO en Drive: {nombre_archivo}")
+            return True  # éxito
+
+        except Exception as e:
+            espera = ESPERA_BASE * intento
+            if "429" in str(e) or "Quota" in str(e):
+                print(f"  ⏳ [Intento {intento}/{max_intentos}] Cuota Drive excedida. Esperando {espera}s... ({e})")
+            else:
+                print(f"  ❌ [Intento {intento}/{max_intentos}] Error al subir: {e}. Esperando {espera}s...")
+            if intento < max_intentos:
+                time.sleep(espera)
+            else:
+                print("  ❌ Se agotaron los intentos para subir el JSON.")
+                raise
+    return False
+
+try:
     secreto_json = os.environ.get('GCP_SERVICE_ACCOUNT_JSON')
     info_claves = json_lib.loads(secreto_json)
-    
-    # ← Redefinir creds acá, en este scope
     creds = service_account.Credentials.from_service_account_info(
         info_claves,
         scopes=[
@@ -3331,45 +3398,29 @@ try:
             "https://www.googleapis.com/auth/drive"
         ]
     )
-    df_final_limpio = obtener_df_de_sheets("Entradas auto", "Eventos")
-    if df_final_limpio.empty:
-        print('No se obtuvo el df_principal (Tabla limpia de sheets)')
-    registros = df_final_limpio.to_dict(orient='records')
-    contenido_json = json_lib.dumps(registros, ensure_ascii=False, indent=2)
 
-    drive_service = build('drive', 'v3', credentials=creds)
-    nombre_archivo = "snapshot_eventos.json"
-    CARPETA_ID = "1Ds_NaXnETHmocUGQ2RVsnnxEeXfiGf_R"
+    # 1. Leer el DataFrame con reintentos
+    df_final_limpio = obtener_df_con_reintentos("Entradas auto", "Eventos")
 
-    buffer = io.BytesIO(contenido_json.encode('utf-8'))
-    media = MediaIoBaseUpload(buffer, mimetype='application/json', resumable=False)
-
-    resultado = drive_service.files().list(
-        q=f"name='{nombre_archivo}' and '{CARPETA_ID}' in parents and trashed=false",
-        fields="files(id, name)"
-    ).execute()
-    archivos = resultado.get('files', [])
-
-    if archivos:
-        file_id = archivos[0]['id']
-        drive_service.files().update(fileId=file_id, media_body=media).execute()
-        log(f"  ✅ Snapshot actualizado en Drive: {nombre_archivo} → {len(registros)} eventos")
+    if df_final_limpio is None or df_final_limpio.empty:
+        print("  ❌ No se pudo obtener el DataFrame. Abortando snapshot.")
     else:
-        drive_service.files().create(
-            body={
-                'name': nombre_archivo,
-                'mimeType': 'application/json',
-                'parents': [CARPETA_ID]
-            },
-            media_body=media
-        ).execute()
-        log(f"  ✅ Snapshot creado en Drive: {nombre_archivo} → {len(registros)} eventos")
+        registros = df_final_limpio.to_dict(orient='records')
+        contenido_json = json_lib.dumps(registros, ensure_ascii=False, indent=2)
+        print(f"  📦 JSON generado: {len(registros)} eventos, {len(contenido_json)} bytes")
+
+        # 2. Subir a Drive con reintentos
+        drive_service = build('drive', 'v3', credentials=creds)
+        nombre_archivo = "snapshot_eventos.json"
+        CARPETA_ID = "1Ds_NaXnETHmocUGQ2RVsnnxEeXfiGf_R"
+
+        subir_json_con_reintentos(drive_service, contenido_json, nombre_archivo, CARPETA_ID)
+        log(f"  ✅ Snapshot finalizado: {nombre_archivo} → {len(registros)} eventos")
 
 except Exception as e:
     import traceback
-    print(f"  ❌ Error al generar snapshot JSON: {e}")
+    print(f"  ❌ Error fatal en snapshot JSON: {e}")
     print(traceback.format_exc())
-
 
 
 
