@@ -2242,9 +2242,9 @@ def ejecutar_scraper_metropolitano():
 
 
 # --- LLAMADO (comentar para desactivar) ---
-log('')
-log('METROPOLITANO')
-ejecutar_scraper_metropolitano()
+#log('')
+#log('METROPOLITANO')
+#ejecutar_scraper_metropolitano()
 
 def ejecutar_scraper_fcefyn():
     import pandas as pd
