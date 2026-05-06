@@ -837,6 +837,16 @@ def extraer_promedio_precios(soup):
     prom_f2 = extraer_promedio_precios_formato2(soup)
     return prom_f2 if prom_f2 is not None else prom_f1
 
+
+def lugar_excluido_eden(texto):
+    """Detecta si el texto del lugar corresponde a una ubicación que debe rechazarse."""
+    if not texto or not isinstance(texto, str):
+        return False
+    texto_normalizado = texto.lower()
+    texto_normalizado = texto_normalizado.replace('í', 'i').replace('ó', 'o').replace('á', 'a').replace('é', 'e').replace('ú', 'u')
+    return 'rio cuarto' in texto_normalizado or 'oncativo' in texto_normalizado
+
+
 def normalizar_fecha_complejo(fecha_str):
     """Normaliza una cadena de fecha y hora con múltiples formatos, incluyendo el estándar de Edén."""
     if not fecha_str: return []
@@ -1116,6 +1126,7 @@ def ejecutar_scraper_eden():
         # 4. Filtrado y Normalización
         print("Eden: aplicando filtro de ciudad Córdoba a los eventos")
         df_filtrado = data_df[data_df['filtro_ciudad'].str.contains('Córdoba|Cordoba|Cba', case=False, na=False)].copy()
+        df_filtrado = df_filtrado[~df_filtrado.apply(lambda row: lugar_excluido_eden(row['Locación']) or lugar_excluido_eden(row.get('filtro_ciudad', '')), axis=1)].copy()
         print(f"Eden: eventos después de filtro de ciudad: {len(df_filtrado)}")
         
         if not df_filtrado.empty:
