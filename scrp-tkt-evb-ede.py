@@ -569,40 +569,15 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
             df_entrada = df.copy()
             conteo_reales = 0
             
-            # Identificadores de lógica
-            tablas_acumulativas = ['Rechazados', 'Duplicados']
-            es_acumulativa = nombre_tabla in tablas_acumulativas
+            # Todas las tablas se tratan como acumulativas/históricas, con un tratamiento especial
+            # solo para Ferias y Congresos (Auto) en la eliminación de duplicados por 'Eventos'.
             es_ferias_auto = nombre_tabla == 'Ferias y Congresos (Auto)'
 
             # --- 2. LÓGICA DE DETECCIÓN DE FILAS NUEVAS ---
             if len(existing_data) > 1:
                 existing_df = pd.DataFrame(existing_data[1:], columns=existing_data[0])
-                
-                if es_acumulativa:
-                    # Caso A: Pase libre total (No filtramos nada contra lo existente)
-                    df_nuevas_reales = df_entrada.copy()
-                    print(f"ℹ️ Modo Acumulativo: Agregando todas las filas a '{nombre_tabla}'.")
-                
-                elif es_ferias_auto:
-                    # Caso B: Filtro especial por columna 'Eventos'
-                    col_busqueda = 'Eventos'
-                    if col_busqueda in existing_df.columns and col_busqueda in df_entrada.columns:
-                        mask_nuevos = ~df_entrada[col_busqueda].astype(str).isin(existing_df[col_busqueda].astype(str))
-                        df_nuevas_reales = df_entrada[mask_nuevos].copy()
-                    else:
-                        df_nuevas_reales = df_entrada.copy()
-                
-                else:
-                    # Caso C: Lógica estándar por ID (Origen, href, etc.)
-                    columnas_id = ['ID','Origen', 'href', 'Link', 'URL']
-                    id_col = next((c for c in columnas_id if c in df_entrada.columns), None)
-                    
-                    if id_col and id_col in existing_df.columns:
-                        mask_nuevos = ~df_entrada[id_col].astype(str).isin(existing_df[id_col].astype(str))
-                        df_nuevas_reales = df_entrada[mask_nuevos].copy()
-                    else:
-                        df_nuevas_reales = df_entrada.copy()
-                
+                df_nuevas_reales = df_entrada.copy()
+                print(f"ℹ️ Modo Históricamente Acumulativo: Agregando todas las filas a '{nombre_tabla}'.")
                 combined_df = pd.concat([existing_df, df_nuevas_reales], ignore_index=True)
                 conteo_reales = len(df_nuevas_reales)
             else:
@@ -613,10 +588,17 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
 
             # --- 3. LIMPIEZA Y ELIMINACIÓN DE DUPLICADOS INTERNOS ---
             if not combined_df.empty:
-                # Si no es acumulativa, nos aseguramos de que no haya duplicados en el set final
-                if not es_acumulativa:
-                    if es_ferias_auto:
+                if es_ferias_auto:
+                    # Para Ferias y Congresos, eliminamos duplicados por evento.
+                    if 'Eventos' in combined_df.columns:
                         combined_df = combined_df.drop_duplicates(subset=['Eventos'], keep='first')
+                else:
+                    # Para el resto de las hojas históricas, mantenemos el historial y eliminamos
+                    # duplicados exactos según la mejor clave disponible.
+                    if set(['href', 'title', 'date']).issubset(combined_df.columns):
+                        combined_df = combined_df.drop_duplicates(subset=['href', 'title', 'date'], keep='first')
+                    elif set(['title', 'date']).issubset(combined_df.columns):
+                        combined_df = combined_df.drop_duplicates(subset=['title', 'date'], keep='first')
                     else:
                         columnas_id = ['ID','Origen', 'href', 'Link', 'URL']
                         id_col_final = next((c for c in columnas_id if c in combined_df.columns), None)
@@ -637,7 +619,7 @@ def subir_a_google_sheets(df, nombre_tabla, nombre_hoja="sheet1", retries=3):
                     return str(val) if isinstance(val, (dict, list)) else val
 
                 combined_df = combined_df.replace([np.inf, -np.inf], np.nan).fillna("")
-                data_final = combined_df.map(serializar_datos)
+                data_final = combined_df.applymap(serializar_datos)
                 
                 # --- 6. SUBIDA FINAL ---
                 sheet.clear()
