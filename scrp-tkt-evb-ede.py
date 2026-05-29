@@ -1841,7 +1841,7 @@ def ejecutar_scraper_turismo_cba():
                     "Lugar": locacion,
                     "Comienza": fecha_inicio,
                     "Finaliza": fecha_fin if fecha_fin else fecha_inicio,
-                    "Tipo de evento": "Espectáculo",
+                    "Tipo de evento": "",
                     "Detalle": "",
                     "Alcance": "",
                     "Costo de entrada": precio,
