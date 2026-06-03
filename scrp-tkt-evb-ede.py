@@ -3398,6 +3398,8 @@ try:
     if df_final_limpio is None or df_final_limpio.empty:
         print("  ❌ No se pudo obtener el DataFrame. Abortando snapshot.")
     else:
+        df_final_limpio = df_final_limpio.dropna(subset='ID')
+        df_final_limpio = df_final_limpio[df_final_limpio['ID'].astype(str).str.strip() != ""]
         registros = df_final_limpio.to_dict(orient='records')
         contenido_json = json_lib.dumps(registros, ensure_ascii=False, indent=2)
         print(f"  📦 JSON generado: {len(registros)} eventos, {len(contenido_json)} bytes")
