@@ -1424,9 +1424,13 @@ def ejecutar_scraper_eventbrite():
                 registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], f"Fallo en conversión de fecha: {row['Fecha']}", "165", "Eventbrite", row['Origen'])
             
             df_final_data = df_filtrado[mask_fecha_ok].copy()
+            if 'tipo de evento' not in df_final_data.columns:
+                df_final_data['tipo de evento'] = ''
+            if 'confianza_clasificacion' not in df_final_data.columns:
+                df_final_data['confianza_clasificacion'] = None
 
             df_final_data, metricas_eb = aplicar_clasificador(
-                df=df_final,
+                df=df_final_data,
                 col_nombre='Nombre',
                 col_lugar='Locación',
                 col_tipo_evento='tipo de evento',
@@ -1439,8 +1443,13 @@ def ejecutar_scraper_eventbrite():
                     'Nombre': df_final_data['Nombre'],
                     'Locación': df_final_data['Locación'],
                     'Fecha Convertida': df_final_data['Fecha Convertida'].astype(str),
-                    'termina': "", 'tipo de evento': df_final_data['tipo de evento'], 'detalle': "", 'alcance': "",
-                    'Precio': 0.0, 'fuente': 'eventbrite', 'Origen': df_final_data['Origen'],
+                    'termina': "",
+                    'tipo de evento': df_final_data['tipo de evento'].fillna(''),
+                    'detalle': "",
+                    'alcance': "",
+                    'Precio': 0.0,
+                    'fuente': 'eventbrite',
+                    'Origen': df_final_data['Origen'],
                     'Fecha Scrp': datetime.today().strftime('%Y-%m-%d')
                 })
                 
