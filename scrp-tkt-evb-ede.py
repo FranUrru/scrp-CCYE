@@ -2729,7 +2729,6 @@ def procesar_duplicados_y_normalizar():
         r'colonia caroya',
         r'colonia tirolesa',
         r'colonia vicente ag[uü]ero',
-        r'c[oó]rdoba',
         r'cosqu[ií]n',
         r'despeñaderos',
         r'el manzano',
