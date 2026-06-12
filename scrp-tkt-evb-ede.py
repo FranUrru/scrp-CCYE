@@ -1527,8 +1527,8 @@ def enviar_log_smtp(cuerpo_log, lista_destinatarios):
             log("🔴 Error: No se encontró EMAIL_APP_PASSWORD en los secretos.")
             return
         else:
-        # Esto te asegura que al menos tiene los 16 caracteres correctos y no espacios extra
-        log(f"🔑 Contraseña detectada. Largo: {len(password)} caracteres.")
+            # Esto te asegura que al menos tiene los 16 caracteres correctos y no espacios extra
+            log(f"🔑 Contraseña detectada. Largo: {len(password)} caracteres.")
           
 
         # Iniciamos la conexión con el servidor SMTP de Gmail
