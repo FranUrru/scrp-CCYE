@@ -1520,7 +1520,7 @@ def enviar_log_smtp(cuerpo_log, lista_destinatarios):
     """Envía el log acumulado a múltiples correos usando SMTP (reemplaza Gmail API)."""
     try:
         # Configuración desde variables de entorno para seguridad
-        remitente = "meabeldano@cordobaacelera.com.ar"  # El mail que generó la App Password
+        remitente = "rmansilla@cordobaacelera.com.ar"  # El mail que generó la App Password
         password = os.environ.get('EMAIL_APP_PASSWORD')
         
         if not password:
