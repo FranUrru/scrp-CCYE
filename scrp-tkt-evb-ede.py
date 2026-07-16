@@ -3317,6 +3317,71 @@ def procesar_duplicados_y_normalizar():
 
         print(f"\n  ✅ Detección completada: {grupos_encontrados} grupos de duplicados encontrados.")
 
+        # --- NUEVO: AUDITORÍA DE LOCALES HABILITADOS (ARCHIVO SEPARADO) ---
+        print("\n🏢 Cruzando eventos con Locales Habilitados (Auditoría para Mail)...")
+        
+        try:
+            # ACA LEE TU NUEVO ARCHIVO SEPARADO. 
+            # El primer texto es el nombre del Archivo, el segundo es el nombre de la Pestaña adentro de ese archivo.
+            # (Asegurate de que la pestaña adentro se llame "Hoja 1", o cambialo acá)
+            df_habilitados = obtener_df_con_reintentos("Locales Habilitados", "Hoja 1") 
+            
+            if not df_habilitados.empty:
+                print("  ⚙️ Normalizando la lista oficial para comparar...")
+                col_nombre = 'Lugar_Norm' if 'Lugar_Norm' in df_habilitados.columns else df_habilitados.columns[1]
+                
+                habilitados_oficiales_norm = set()
+                
+                # NORMALIZACIÓN DE LA LISTA OFICIAL
+                for _, row in df_habilitados.iterrows():
+                    nombre_raw = str(row[col_nombre]).strip()
+                    if not nombre_raw or nombre_raw == 'nan': continue
+                    
+                    nombre_key = nombre_raw.lower()
+                    if nombre_key in valores_ya_normalizados:
+                        habilitados_oficiales_norm.add(nombre_key)
+                    elif nombre_key in mapeo_lugares:
+                        habilitados_oficiales_norm.add(mapeo_lugares[nombre_key].lower())
+                    else:
+                        habilitados_oficiales_norm.add(nombre_key)
+
+                # EL CRUCE CON LOS EVENTOS
+                lugares_eventos = df_principal['Lugar_Norm'].dropna().astype(str).unique()
+                alertas_clandestinos = []
+                
+                for lugar_ev in lugares_eventos:
+                    lugar_limpio = lugar_ev.lower().strip()
+                    if not lugar_limpio or lugar_limpio == 'nan': continue
+                    
+                    # Check A: Coincidencia exacta
+                    if lugar_limpio in habilitados_oficiales_norm:
+                        continue
+                        
+                    # Check B: Coincidencia parcial
+                    match_parcial = False
+                    for oficial in habilitados_oficiales_norm:
+                        if oficial in lugar_limpio or lugar_limpio in oficial:
+                            match_parcial = True
+                            break
+                    
+                    # Si falla ambos chequeos, lo guardamos para la alerta
+                    if not match_parcial:
+                        alertas_clandestinos.append(lugar_ev)
+                
+                # REPORTE EXCLUSIVO PARA EL MAIL (a través del log)
+                if alertas_clandestinos:
+                    log("\n🚨 ALERTA DE HABILITACIÓN MUNICIPAL 🚨")
+                    log(f"Se detectaron {len(alertas_clandestinos)} lugares con eventos programados que NO figuran en la lista oficial:")
+                    for loc in alertas_clandestinos:
+                        log(f" ❌ {loc}")
+                    log("Revisar si están en infracción o si el nombre legal difiere del comercial.")
+                else:
+                    log("\n✅ Auditoría de Habilitaciones: Todos los lugares detectados están habilitados.")
+            else:
+                log("\n⚠️ La lectura de 'Locales Habilitados' devolvió una tabla vacía.")
+                
+        except Exception as e:
+            log(f"\n⚠️ Error al intentar auditar los locales habilitados: {e}") 
         # --- 4. GUARDAR DUPLICADOS ---
         print("\n💾 Guardando resultados...")
         if duplicados_para_registro:
