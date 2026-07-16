@@ -3324,7 +3324,7 @@ def procesar_duplicados_y_normalizar():
             # ACA LEE TU NUEVO ARCHIVO SEPARADO. 
             # El primer texto es el nombre del Archivo, el segundo es el nombre de la Pestaña adentro de ese archivo.
             # (Asegurate de que la pestaña adentro se llame "Hoja 1", o cambialo acá)
-            df_habilitados = obtener_df_con_reintentos("Locales Habilitados", "Hoja 1") 
+            df_habilitados = obtener_df_de_sheets("Locales Habilitados", "Hoja 1") 
             
             if not df_habilitados.empty:
                 print("  ⚙️ Normalizando la lista oficial para comparar...")
