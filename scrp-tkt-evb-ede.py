@@ -758,15 +758,15 @@ def ejecutar_scraper_ticketek():
         # Eliminamos filas que no tengan Fecha (vienen de la 239) o Lugar (de la 244)
         df_artists2_cleaned = df_artists2_cleaned.dropna(subset=['date', 'lugar'])
         
-        df_final = reordenar_y_agregar_columnas(df_artists2_cleaned.copy())
-        df_final['finaliza'] = df_final['date']
+      df_final = reordenar_y_agregar_columnas(df_artists2_cleaned.copy())
+        df_final['Finaliza'] = df_final['Comienza']
         df_final['fecha de carga'] = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
         df_final['price_avg'] = df_final['price_avg'].astype(str).str.replace("'", "", regex=False).astype(float)
         df_final, metricas_tkt = aplicar_clasificador(
             df=df_final,
-            col_nombre='title',
-            col_lugar='lugar',
-            col_tipo_evento='tipo de evento',
+            col_nombre='Eventos',
+            col_lugar='Lugar',
+            col_tipo_evento='Tipo de evento',
             col_confianza='confianza_clasificacion'
             )
         log(f"🤖 Ticketek — Predicciones: {metricas_tkt['predicciones']} | Confianza promedio: {metricas_tkt['confianza_promedio']}")
