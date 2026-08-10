@@ -480,7 +480,16 @@ def reordenar_y_agregar_columnas(df):
 
     # Reordenar las columnas
     df = df[nuevo_orden_columnas]
-
+df = df.rename(columns={
+        'title': 'Eventos',
+        'lugar': 'Lugar',
+        'date': 'Comienza',
+        'finaliza': 'Finaliza',
+        'tipo de evento': 'Tipo de evento',
+        'fuente': 'Fuente',
+        'href': 'Origen',
+        'price': 'Costo de entrada'
+    })
     return df
 def limpiar_lugar(nombre):
     # Convertimos a string por seguridad y verificamos
