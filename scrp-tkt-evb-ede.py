@@ -478,9 +478,10 @@ def reordenar_y_agregar_columnas(df):
     # Crear la columna 'fuente' con el valor 'Ticketek'
     df['fuente'] = 'Ticketek'
 
-    # Reordenar las columnas
+   # Reordenar las columnas
     df = df[nuevo_orden_columnas]
-df = df.rename(columns={
+
+    df = df.rename(columns={
         'title': 'Eventos',
         'lugar': 'Lugar',
         'date': 'Comienza',
@@ -490,7 +491,9 @@ df = df.rename(columns={
         'href': 'Origen',
         'price': 'Costo de entrada'
     })
+    
     return df
+
 def limpiar_lugar(nombre):
     # Convertimos a string por seguridad y verificamos
     nombre_str = str(nombre)
@@ -504,7 +507,6 @@ def limpiar_lugar(nombre):
         return 'Teatro Comedia'
     else:
         return nombre
-
 
 
 import pandas as pd
