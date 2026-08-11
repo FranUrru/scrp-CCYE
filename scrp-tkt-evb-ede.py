@@ -754,11 +754,11 @@ def ejecutar_scraper_ticketek():
                 href=row['href']
             )
 
-        # --- PASO 3: El descarte (Dropna) ---
+    # --- PASO 3: El descarte (Dropna) ---
         # Eliminamos filas que no tengan Fecha (vienen de la 239) o Lugar (de la 244)
         df_artists2_cleaned = df_artists2_cleaned.dropna(subset=['date', 'lugar'])
         
-      df_final = reordenar_y_agregar_columnas(df_artists2_cleaned.copy())
+        df_final = reordenar_y_agregar_columnas(df_artists2_cleaned.copy())
         df_final['Finaliza'] = df_final['Comienza']
         df_final['fecha de carga'] = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
         df_final['price_avg'] = df_final['price_avg'].astype(str).str.replace("'", "", regex=False).astype(float)
@@ -770,7 +770,7 @@ def ejecutar_scraper_ticketek():
             col_confianza='confianza_clasificacion'
             )
         log(f"🤖 Ticketek — Predicciones: {metricas_tkt['predicciones']} | Confianza promedio: {metricas_tkt['confianza_promedio']}")
-
+        
         subir_a_google_sheets(df_final,'Ticketek historico (Auto)','Hoja 1')
         reporte["estado"] = "Exitoso"
         reporte["filas_procesadas"] = len(df_final)
