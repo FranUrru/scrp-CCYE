@@ -1235,340 +1235,339 @@ log('')
 log('EDÉN')
 ejecutar_scraper_eden()
 
-##################################################################################################################
-####################################### EVENTBRITE ###############################################################
-##################################################################################################################
-import pandas as pd
-import time
-import re
-import requests
-import numpy as np
-from datetime import datetime, timedelta
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+# ##################################################################################################################
+# ####################################### EVENTBRITE ###############################################################
+# ##################################################################################################################
+# import pandas as pd
+# import time
+# import re
+# import requests
+# import numpy as np
+# from datetime import datetime, timedelta
+# from selenium.webdriver.common.by import By
+# from selenium.webdriver.support.ui import WebDriverWait
+# from selenium.webdriver.support import expected_conditions as EC
 
-# --- FUNCIONES DE APOYO ---
+# # --- FUNCIONES DE APOYO ---
 
-def limpiar_fecha_texto(fecha):
-    """Limpia el texto de Eventbrite antes de procesarlo."""
-    if not fecha or fecha == 'N/A': return "Formato desconocido"
-    fecha = re.sub(r"\+.*", "", fecha).strip()
-    return fecha
+# def limpiar_fecha_texto(fecha):
+#     """Limpia el texto de Eventbrite antes de procesarlo."""
+#     if not fecha or fecha == 'N/A': return "Formato desconocido"
+#     fecha = re.sub(r"\+.*", "", fecha).strip()
+#     return fecha
 
-def convertir_fechas(fecha):
-    if not fecha or fecha == "N/A": return "Formato desconocido"
-    fecha_low = fecha.lower()
-    ahora = datetime.now()
+# def convertir_fechas(fecha):
+#     if not fecha or fecha == "N/A": return "Formato desconocido"
+#     fecha_low = fecha.lower()
+#     ahora = datetime.now()
     
-    try:
-        # 1. HOY
-        if "hoy" in fecha_low:
-            match = re.search(r'(\d{1,2}:\d{2})', fecha_low)
-            if match:
-                hora, minuto = map(int, match.group(1).split(":"))
-                return ahora.replace(hour=hora, minute=minuto, second=0, microsecond=0)
+#     try:
+#         # 1. HOY
+#         if "hoy" in fecha_low:
+#             match = re.search(r'(\d{1,2}:\d{2})', fecha_low)
+#             if match:
+#                 hora, minuto = map(int, match.group(1).split(":"))
+#                 return ahora.replace(hour=hora, minute=minuto, second=0, microsecond=0)
         
-        # 2. MAÑANA
-        elif "mañana" in fecha_low:
-            match = re.search(r'(\d{1,2}:\d{2})', fecha_low)
-            if match:
-                hora, minuto = map(int, match.group(1).split(":"))
-                tomorrow = ahora + timedelta(days=1)
-                return tomorrow.replace(hour=hora, minute=minuto, second=0, microsecond=0)
+#         # 2. MAÑANA
+#         elif "mañana" in fecha_low:
+#             match = re.search(r'(\d{1,2}:\d{2})', fecha_low)
+#             if match:
+#                 hora, minuto = map(int, match.group(1).split(":"))
+#                 tomorrow = ahora + timedelta(days=1)
+#                 return tomorrow.replace(hour=hora, minute=minuto, second=0, microsecond=0)
         
-        # 3. DÍA DE LA SEMANA
-        dias = {"lunes":0, "martes":1, "miércoles":2, "jueves":3, "viernes":4, "sábado":5, "domingo":6}
-        for nombre, cod in dias.items():
-            if nombre in fecha_low:
-                match = re.search(r'(\d{1,2}:\d{2})', fecha_low)
-                if match:
-                    hora, minuto = map(int, match.group(1).split(":"))
-                    dias_adelante = (cod - ahora.weekday()) % 7
-                    if dias_adelante == 0: dias_adelante = 7
-                    target = ahora + timedelta(days=dias_adelante)
-                    return target.replace(hour=hora, minute=minuto, second=0, microsecond=0)
+#         # 3. DÍA DE LA SEMANA
+#         dias = {"lunes":0, "martes":1, "miércoles":2, "jueves":3, "viernes":4, "sábado":5, "domingo":6}
+#         for nombre, cod in dias.items():
+#             if nombre in fecha_low:
+#                 match = re.search(r'(\d{1,2}:\d{2})', fecha_low)
+#                 if match:
+#                     hora, minuto = map(int, match.group(1).split(":"))
+#                     dias_adelante = (cod - ahora.weekday()) % 7
+#                     if dias_adelante == 0: dias_adelante = 7
+#                     target = ahora + timedelta(days=dias_adelante)
+#                     return target.replace(hour=hora, minute=minuto, second=0, microsecond=0)
 
-        # 4. FECHA ESPECÍFICA (ej: "31 oct, 19:00")
-        meses = {
-            "ene": 1, "feb": 2, "mar": 3, "abr": 4, "may": 5, "jun": 6,
-            "jul": 7, "ago": 8, "sep": 9, "oct": 10, "nov": 11, "dic": 12
-        }
-        match_esp = re.search(r'(\d{1,2})\s([a-z]{3}).*?(\d{1,2}:\d{2})', fecha_low)
-        if match_esp:
-            dia = int(match_esp.group(1))
-            mes_txt = match_esp.group(2)
-            hora_str = match_esp.group(3)
-            if mes_txt in meses:
-                mes = meses[mes_txt]
-                año = ahora.year
-                if mes < ahora.month: año += 1
-                h, m = map(int, hora_str.split(":"))
-                return datetime(año, mes, dia, h, m)
+#         # 4. FECHA ESPECÍFICA (ej: "31 oct, 19:00")
+#         meses = {
+#             "ene": 1, "feb": 2, "mar": 3, "abr": 4, "may": 5, "jun": 6,
+#             "jul": 7, "ago": 8, "sep": 9, "oct": 10, "nov": 11, "dic": 12
+#         }
+#         match_esp = re.search(r'(\d{1,2})\s([a-z]{3}).*?(\d{1,2}:\d{2})', fecha_low)
+#         if match_esp:
+#             dia = int(match_esp.group(1))
+#             mes_txt = match_esp.group(2)
+#             hora_str = match_esp.group(3)
+#             if mes_txt in meses:
+#                 mes = meses[mes_txt]
+#                 año = ahora.year
+#                 if mes < ahora.month: año += 1
+#                 h, m = map(int, hora_str.split(":"))
+#                 return datetime(año, mes, dia, h, m)
 
-        return fecha 
-    except Exception as e:
-        return "Error formato"
+#         return fecha 
+#     except Exception as e:
+#         return "Error formato"
 
-# --- FUNCIÓN PRINCIPAL ---
+# # --- FUNCIÓN PRINCIPAL ---
 
-def ejecutar_scraper_eventbrite():
-    driver = None
-    reporte = {
-        "nombre": "Eventbrite",
-        "estado": "Pendiente",
-        "filas_procesadas": 0,
-        "error": None,
-        "inicio": datetime.now().strftime('%H:%M:%S')
-    }
+# def ejecutar_scraper_eventbrite():
+#     driver = None
+#     reporte = {
+#         "nombre": "Eventbrite",
+#         "estado": "Pendiente",
+#         "filas_procesadas": 0,
+#         "error": None,
+#         "inicio": datetime.now().strftime('%H:%M:%S')
+#     }
     
-    # --- CONFIGURACIÓN AUDITORÍA ---
-    df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link'])
+#     # --- CONFIGURACIÓN AUDITORÍA ---
+#     df_rechazados = pd.DataFrame(columns=['Nombre', 'Locación', 'Fecha', 'Motivo', 'Linea', 'Fuente', 'Link'])
 
-    def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href):
-        nonlocal df_rechazados
-        nuevo = pd.DataFrame([{
-            'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
-            'Motivo': motivo, 'Linea': str(linea), 'Fuente': fuente,
-            'Link': href
-        }])
-        df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
+#     def registrar_rechazo(nombre, loc, fecha, motivo, linea, fuente, href):
+#         nonlocal df_rechazados
+#         nuevo = pd.DataFrame([{
+#             'Nombre': nombre, 'Locación': loc, 'Fecha': fecha,
+#             'Motivo': motivo, 'Linea': str(linea), 'Fuente': fuente,
+#             'Link': href
+#         }])
+#         df_rechazados = pd.concat([df_rechazados, nuevo], ignore_index=True)
 
-    date_keywords = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom', 'mañana', 'hoy', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+#     date_keywords = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom', 'mañana', 'hoy', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
     
-    try:
-        driver = iniciar_driver()
-        base_url = 'https://www.eventbrite.com.ar/d/argentina--c%C3%B3rdoba/all-events/'
-        event_data = []
-        seen_links = set()
+#     try:
+#         driver = iniciar_driver()
+#         base_url = 'https://www.eventbrite.com.ar/d/argentina--c%C3%B3rdoba/all-events/'
+#         event_data = []
+#         seen_links = set()
 
-        for page in range(1, 6):
-            print(f"📄 Eventbrite: Procesando página {page}...")
-            driver.get(f'{base_url}?page={page}')
+#         for page in range(1, 6):
+#             print(f"📄 Eventbrite: Procesando página {page}...")
+#             driver.get(f'{base_url}?page={page}')
             
-            try:
-                # Esperamos a que aparezca el contenedor de las cards, no solo el h3
-                WebDriverWait(driver, 15).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, 'section.event-card-details'))
-                )
-                # Scroll lento para disparar el lazy loading de Eventbrite
-                for _ in range(3):
-                    driver.execute_script("window.scrollBy(0, 400);")
-                    time.sleep(0.5)
-            except Exception as e: 
-                print(f"⚠️ No se detectaron cards en página {page}. Posible cambio de diseño o fin.")
-                break
+#             try:
+#                 # Esperamos a que aparezca el contenedor de las cards, no solo el h3
+#                 WebDriverWait(driver, 15).until(
+#                     EC.presence_of_element_located((By.CSS_SELECTOR, 'section.event-card-details'))
+#                 )
+#                 # Scroll lento para disparar el lazy loading de Eventbrite
+#                 for _ in range(3):
+#                     driver.execute_script("window.scrollBy(0, 400);")
+#                     time.sleep(0.5)
+#             except Exception as e: 
+#                 print(f"⚠️ No se detectaron cards en página {page}. Posible cambio de diseño o fin.")
+#                 break
 
-            events = driver.find_elements(By.CSS_SELECTOR, 'article, section.discover-horizontal-event-card, div[class*="Stack_root"]')
+#             events = driver.find_elements(By.CSS_SELECTOR, 'article, section.discover-horizontal-event-card, div[class*="Stack_root"]')
             
-            for event in events:
-                try:
-                    # 1. Extracción Básica
-                    try:
-                        name_el = event.find_element(By.TAG_NAME, 'h3')
-                        name = name_el.text.strip()
-                        link = event.find_element(By.TAG_NAME, 'a').get_attribute('href')
-                    except:
-                        continue
+#             for event in events:
+#                 try:
+#                     # 1. Extracción Básica
+#                     try:
+#                         name_el = event.find_element(By.TAG_NAME, 'h3')
+#                         name = name_el.text.strip()
+#                         link = event.find_element(By.TAG_NAME, 'a').get_attribute('href')
+#                     except:
+#                         continue
 
-                    if not name or link in seen_links: 
-                        continue
+#                     if not name or link in seen_links: 
+#                         continue
                     
-                    # 2. Extracción de Fecha y Locación vía párrafos
-                    paragraphs = event.find_elements(By.TAG_NAME, 'p')
-                    date_info, location = 'N/A', 'N/A'
+#                     # 2. Extracción de Fecha y Locación vía párrafos
+#                     paragraphs = event.find_elements(By.TAG_NAME, 'p')
+#                     date_info, location = 'N/A', 'N/A'
 
-                    if paragraphs:
-                        idx_fecha = -1
-                        for i, p in enumerate(paragraphs):
-                            txt = p.text.strip().lower()
-                            if any(kw in txt for kw in date_keywords):
-                                idx_fecha = i
-                                break
+#                     if paragraphs:
+#                         idx_fecha = -1
+#                         for i, p in enumerate(paragraphs):
+#                             txt = p.text.strip().lower()
+#                             if any(kw in txt for kw in date_keywords):
+#                                 idx_fecha = i
+#                                 break
                         
-                        if idx_fecha != -1:
-                            date_info = paragraphs[idx_fecha].text.strip()
-                            if len(paragraphs) > idx_fecha + 1:
-                                location = paragraphs[idx_fecha + 1].text.strip()
-                        else:
-                            location = paragraphs[0].text.strip()
+#                         if idx_fecha != -1:
+#                             date_info = paragraphs[idx_fecha].text.strip()
+#                             if len(paragraphs) > idx_fecha + 1:
+#                                 location = paragraphs[idx_fecha + 1].text.strip()
+#                         else:
+#                             location = paragraphs[0].text.strip()
 
-                    # 3. Auditoría inicial: Datos incompletos
-                    if date_info == 'N/A' or location == 'N/A':
-                        registrar_rechazo(name, location, date_info, "Card con datos insuficientes (Fecha/Locación N/A)", "125", "Eventbrite", link)
-                        continue
+#                     # 3. Auditoría inicial: Datos incompletos
+#                     if date_info == 'N/A' or location == 'N/A':
+#                         registrar_rechazo(name, location, date_info, "Card con datos insuficientes (Fecha/Locación N/A)", "125", "Eventbrite", link)
+#                         continue
 
-                    event_data.append({
-                        'Nombre': name, 'Fecha': date_info, 'Locación': location,
-                        'Precio': "Consultar", 'Origen': link
-                    })
-                    seen_links.add(link)
-                except: 
-                    continue
+#                     event_data.append({
+#                         'Nombre': name, 'Fecha': date_info, 'Locación': location,
+#                         'Precio': "Consultar", 'Origen': link
+#                     })
+#                     seen_links.add(link)
+#                 except: 
+#                     continue
 
-        # --- PROCESAMIENTO ---
-        if not event_data:
-            reporte["estado"] = "Primera página vacía. Reintentando."
-            raise ValueError("No se encontraron datos en Eventbrite")
+#         # --- PROCESAMIENTO ---
+#         if not event_data:
+#             reporte["estado"] = "Primera página vacía. Reintentando."
+#             raise ValueError("No se encontraron datos en Eventbrite")
 
-        df_crudo = pd.DataFrame(event_data)
+#         df_crudo = pd.DataFrame(event_data)
         
-        # 4. Auditoría: Filtrado de Locación (Hoteles MICE)
-        keywords_locacion = ['quinto centenario', 'blas pascal', 'quorum', 'sheraton', 'holiday inn']
-        mask_locacion = df_crudo['Locación'].str.lower().str.contains('|'.join(keywords_locacion), na=False)
+#         # 4. Auditoría: Filtrado de Locación (Hoteles MICE)
+#         keywords_locacion = ['quinto centenario', 'blas pascal', 'quorum', 'sheraton', 'holiday inn']
+#         mask_locacion = df_crudo['Locación'].str.lower().str.contains('|'.join(keywords_locacion), na=False)
         
-        df_rechazados_loc = df_crudo[~mask_locacion]
-        for _, row in df_rechazados_loc.iterrows():
-            registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], "Locación no coincide con Hoteles MICE", "150", "Eventbrite", row['Origen'])
+#         df_rechazados_loc = df_crudo[~mask_locacion]
+#         for _, row in df_rechazados_loc.iterrows():
+#             registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], "Locación no coincide con Hoteles MICE", "150", "Eventbrite", row['Origen'])
 
-        df_filtrado = df_crudo[mask_locacion].copy()
+#         df_filtrado = df_crudo[mask_locacion].copy()
 
-        # 5. Auditoría: Conversión de Fecha
-        if not df_filtrado.empty:
-            df_filtrado['Fecha Convertida'] = df_filtrado['Fecha'].apply(convertir_fechas)
+#         # 5. Auditoría: Conversión de Fecha
+#         if not df_filtrado.empty:
+#             df_filtrado['Fecha Convertida'] = df_filtrado['Fecha'].apply(convertir_fechas)
             
-            # Identificamos fallos (si devuelve string en lugar de datetime o "Error formato")
-            mask_fecha_ok = df_filtrado['Fecha Convertida'].apply(lambda x: isinstance(x, datetime))
+#             # Identificamos fallos (si devuelve string en lugar de datetime o "Error formato")
+#             mask_fecha_ok = df_filtrado['Fecha Convertida'].apply(lambda x: isinstance(x, datetime))
             
-            df_rechazados_fecha = df_filtrado[~mask_fecha_ok]
-            for _, row in df_rechazados_fecha.iterrows():
-                registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], f"Fallo en conversión de fecha: {row['Fecha']}", "165", "Eventbrite", row['Origen'])
+#             df_rechazados_fecha = df_filtrado[~mask_fecha_ok]
+#             for _, row in df_rechazados_fecha.iterrows():
+#                 registrar_rechazo(row['Nombre'], row['Locación'], row['Fecha'], f"Fallo en conversión de fecha: {row['Fecha']}", "165", "Eventbrite", row['Origen'])
             
-            df_final_data = df_filtrado[mask_fecha_ok].copy()
-            if 'tipo de evento' not in df_final_data.columns:
-                df_final_data['tipo de evento'] = ''
-            if 'confianza_clasificacion' not in df_final_data.columns:
-                df_final_data['confianza_clasificacion'] = None
+#             df_final_data = df_filtrado[mask_fecha_ok].copy()
+#             if 'tipo de evento' not in df_final_data.columns:
+#                 df_final_data['tipo de evento'] = ''
+#             if 'confianza_clasificacion' not in df_final_data.columns:
+#                 df_final_data['confianza_clasificacion'] = None
 
-            df_final_data, metricas_eb = aplicar_clasificador(
-                df=df_final_data,
-                col_nombre='Nombre',
-                col_lugar='Locación',
-                col_tipo_evento='tipo de evento',
-                col_confianza='confianza_clasificacion'
-            )
-            log(f"🤖 Eventbrite — Predicciones: {metricas_eb['predicciones']} | Confianza promedio: {metricas_eb['confianza_promedio']}")
+#             df_final_data, metricas_eb = aplicar_clasificador(
+#                 df=df_final_data,
+#                 col_nombre='Nombre',
+#                 col_lugar='Locación',
+#                 col_tipo_evento='tipo de evento',
+#                 col_confianza='confianza_clasificacion'
+#             )
+#             log(f"🤖 Eventbrite — Predicciones: {metricas_eb['predicciones']} | Confianza promedio: {metricas_eb['confianza_promedio']}")
             
-            if not df_final_data.empty:
-                df_final = pd.DataFrame({
-                    'Nombre': df_final_data['Nombre'],
-                    'Locación': df_final_data['Locación'],
-                    'Fecha Convertida': df_final_data['Fecha Convertida'].astype(str),
-                    'termina': "",
-                    'tipo de evento': df_final_data['tipo de evento'].fillna(''),
-                    'detalle': "",
-                    'alcance': "",
-                    'Precio': 0.0,
-                    'fuente': 'eventbrite',
-                    'Origen': df_final_data['Origen'],
-                    'Fecha Scrp': datetime.today().strftime('%Y-%m-%d')
-                })
+#             if not df_final_data.empty:
+#                 df_final = pd.DataFrame({
+#                     'Nombre': df_final_data['Nombre'],
+#                     'Locación': df_final_data['Locación'],
+#                     'Fecha Convertida': df_final_data['Fecha Convertida'].astype(str),
+#                     'termina': "",
+#                     'tipo de evento': df_final_data['tipo de evento'].fillna(''),
+#                     'detalle': "",
+#                     'alcance': "",
+#                     'Precio': 0.0,
+#                     'fuente': 'eventbrite',
+#                     'Origen': df_final_data['Origen'],
+#                     'Fecha Scrp': datetime.today().strftime('%Y-%m-%d')
+#                 })
                 
-                subir_a_google_sheets(df_final, 'base_h_scrp_eventbrite', 'Hoja 1')
-                reporte["filas_procesadas"] = len(df_final)
-                reporte["estado"] = "Exitoso"
-            else:
-                reporte["estado"] = "Exitoso (Sin eventos válidos tras filtros)"
+#                 subir_a_google_sheets(df_final, 'base_h_scrp_eventbrite', 'Hoja 1')
+#                 reporte["filas_procesadas"] = len(df_final)
+#                 reporte["estado"] = "Exitoso"
+#             else:
+#                 reporte["estado"] = "Exitoso (Sin eventos válidos tras filtros)"
 
-        # --- SUBIDA FINAL DE AUDITORÍA ---
-        if not df_rechazados.empty:
-            # Subimos a la pestaña 'Eventbrite' del documento 'Rechazados'
-            subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
-            print(f"✅ Auditoría Eventbrite: {len(df_rechazados)} registros subidos.")
+#         # --- SUBIDA FINAL DE AUDITORÍA ---
+#         if not df_rechazados.empty:
+#             # Subimos a la pestaña 'Eventbrite' del documento 'Rechazados'
+#             subir_a_google_sheets(df_rechazados, 'Rechazados', 'Eventos')
+#             print(f"✅ Auditoría Eventbrite: {len(df_rechazados)} registros subidos.")
 
-    except Exception as e:
-        print(f"❌ Error Crítico Eventbrite: {e}")
-        reporte["estado"] = "Fallido"
-        reporte["error"] = str(e)
-        if driver:
-            driver.quit()
-        raise e
-    finally:
-        if driver:
-            driver.quit()
-        reporte["fin"] = datetime.now().strftime('%H:%M:%S')
-    return reporte
+#     except Exception as e:
+#         print(f"❌ Error Crítico Eventbrite: {e}")
+#         reporte["estado"] = "Fallido"
+#         reporte["error"] = str(e)
+#         if driver:
+#             driver.quit()
+#         raise e
+#     finally:
+#         if driver:
+#             driver.quit()
+#         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
+#     return reporte
 
-intentos_maximos = 0
-resultado_final = None
-log('')
-log('EVENTBRITE')
-for i in range(1, intentos_maximos + 1):
-    try:
-        print(f"🚀 Iniciando Eventbrite - Intento {i} de {intentos_maximos}...")
-        resultado_final = ejecutar_scraper_eventbrite()
+# intentos_maximos = 0
+# resultado_final = None
+# log('')
+# log('EVENTBRITE')
+# for i in range(1, intentos_maximos + 1):
+#     try:
+#         print(f"🚀 Iniciando Eventbrite - Intento {i} de {intentos_maximos}...")
+#         resultado_final = ejecutar_scraper_eventbrite()
         
-        # Si llega aquí, es que funcionó (no hubo raise)
-        print(f"✅ Intento {i} completado con éxito.")
-        break 
+#         # Si llega aquí, es que funcionó (no hubo raise)
+#         print(f"✅ Intento {i} completado con éxito.")
+#         break 
 
-    except Exception as e:
-        print(f"❌ Error en intento {i}: {e}")
+#     except Exception as e:
+#         print(f"❌ Error en intento {i}: {e}")
         
-        # Guardamos un reporte provisional por si este es el último fallo
-        resultado_final = {
-            "nombre": "Eventbrite",
-            "estado": "Fallido definitivamente",
-            "error": str(e),
-            "filas_procesadas": 0,
-            "inicio": datetime.now().strftime('%H:%M:%S') # O la hora que prefieras
-        }
+#         # Guardamos un reporte provisional por si este es el último fallo
+#         resultado_final = {
+#             "nombre": "Eventbrite",
+#             "estado": "Fallido definitivamente",
+#             "error": str(e),
+#             "filas_procesadas": 0,
+#             "inicio": datetime.now().strftime('%H:%M:%S') # O la hora que prefieras
+#         }
 
-        if i < intentos_maximos:
-            print(f"⚠️ Reintentando en 10 segundos...")
-            time.sleep(10)
-        else:
-            log("🛑 Fallo en eventbrite (Intentos agotados)")
-
-# Ahora, pase lo que pase, resultado_final contiene el diccionario
-#print(f"Estado final registrado: {resultado_final['estado']}")
-# Aquí puedes usar resultado_final para subirlo a otro lado o mostrarlo
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-import os
-def enviar_log_smtp(cuerpo_log, lista_destinatarios):
-    """Envía el log acumulado a múltiples correos usando SMTP (reemplaza Gmail API)."""
-    try:
-        # Configuración desde variables de entorno para seguridad
-        remitente = "rmansilla@cordobaacelera.com.ar"  # El mail que generó la App Password
-        password = os.environ.get('EMAIL_APP_PASSWORD')
+#         if i < intentos_maximos:
+#             print(f"⚠️ Reintentando en 10 segundos...")
+#             time.sleep(10)
+#         else:
+#             log("🛑 Fallo en eventbrite (Intentos agotados)")
+# # Ahora, pase lo que pase, resultado_final contiene el diccionario
+# #print(f"Estado final registrado: {resultado_final['estado']}")
+# # Aquí puedes usar resultado_final para subirlo a otro lado o mostrarlo
+# import smtplib
+# from email.mime.text import MIMEText
+# from email.mime.multipart import MIMEMultipart
+# import os
+# def enviar_log_smtp(cuerpo_log, lista_destinatarios):
+#     """Envía el log acumulado a múltiples correos usando SMTP (reemplaza Gmail API)."""
+#     try:
+#         # Configuración desde variables de entorno para seguridad
+#         remitente = "rmansilla@cordobaacelera.com.ar"  # El mail que generó la App Password
+#         password = os.environ.get('EMAIL_APP_PASSWORD')
         
-        if not password:
-            log("🔴 Error: No se encontró EMAIL_APP_PASSWORD en los secretos.")
-            return
-        else:
-            log(f"🔑 Contraseña detectada. Largo: {len(password)} caracteres.")
-            # ESTA LÍNEA DE CONTROL:
-            log(f"¿Tiene espacios o saltos de línea?: {password.strip() != password}")
+#         if not password:
+#             log("🔴 Error: No se encontró EMAIL_APP_PASSWORD en los secretos.")
+#             return
+#         else:
+#             log(f"🔑 Contraseña detectada. Largo: {len(password)} caracteres.")
+#             # ESTA LÍNEA DE CONTROL:
+#             log(f"¿Tiene espacios o saltos de línea?: {password.strip() != password}")
           
 
-        # Iniciamos la conexión con el servidor SMTP de Gmail
-        log("🔗 Conectando al servidor de correo...")
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()  # Cifrado de seguridad
-        server.login(remitente, password)
+#         # Iniciamos la conexión con el servidor SMTP de Gmail
+#         log("🔗 Conectando al servidor de correo...")
+#         server = smtplib.SMTP('smtp.gmail.com', 587)
+#         server.starttls()  # Cifrado de seguridad
+#         server.login(remitente, password)
 
-        for destinatario in lista_destinatarios:
-            # Creamos el contenedor del mensaje
-            message = MIMEMultipart()
-            message['To'] = destinatario
-            message['From'] = f"Scraper Automático <{remitente}>"
-            message['Subject'] = "📊 REPORTE SCRP AGENDA"
-            
-            # Agregamos el cuerpo del log
-            message.attach(MIMEText(cuerpo_log, 'plain'))
+#         for destinatario in lista_destinatarios:
+#             # Creamos el contenedor del mensaje
+#             message = MIMEMultipart()
+#             message['To'] = destinatario
+#             message['From'] = f"Scraper Automático <{remitente}>"
+#             message['Subject'] = "📊 REPORTE SCRP AGENDA"
+          
+#             # Agregamos el cuerpo del log
+#             message.attach(MIMEText(cuerpo_log, 'plain'))
 
-            # Envío del correo
-            server.send_message(message)
-            log(f"📧 Mail enviado a {destinatario}")
+#             # Envío del correo
+#             server.send_message(message)
+#             log(f"📧 Mail enviado a {destinatario}")
 
-        # Cerramos la conexión después de enviar a todos
-        server.quit()
-        log("✅ Proceso de envío finalizado.")
+#         # Cerramos la conexión después de enviar a todos
+#         server.quit()
+#         log("✅ Proceso de envío finalizado.")
 
-    except Exception as e:
-        log(f"🔴 Error al enviar mail vía SMTP: {e}")
+#     except Exception as e:
+#         log(f"🔴 Error al enviar mail vía SMTP: {e}")
 
 
 
