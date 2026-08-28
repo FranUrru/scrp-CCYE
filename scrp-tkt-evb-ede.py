@@ -2733,9 +2733,37 @@ COLUMNAS_MAESTRAS = [
     'fecha de carga', 'ID', 'confianza_clasificacion'
 ]
 
+def limpiar_y_formatear_fecha(fecha_texto):
+    """Convierte textos de fecha a formato estándar YYYY-MM-DD"""
+    if not fecha_texto or "confirmar" in fecha_texto.lower():
+        return "Fecha a confirmar"
+    
+    # Intentar limpiar meses en español comunes
+    meses = {
+        'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04',
+        'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08',
+        'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12'
+    }
+    
+    texto_lower = fecha_texto.lower()
+    for mes_nombre, mes_num in meses.items():
+        if mes_nombre in texto_lower:
+            match_nums = re.findall(r'\d{1,4}', texto_lower)
+            if len(match_nums) >= 2:
+                dia = match_nums[0].zfill(2)
+                anio = match_nums[1] if len(match_nums[1]) == 4 else '2026'
+                return f"{anio}-{mes_num}-{dia}"
+                
+    return fecha_texto
+
+def generar_id_evento(nombre, fecha):
+    """Genera un ID único y limpio basado en el evento y la fecha"""
+    base = f"{nombre}_{fecha}".lower()
+    base_limpia = re.sub(r'[^a-z0-9]', '_', base)
+    return re.sub(r'_+', '_', base_limpia).strip('_')
+
 # --- QUALITY CENTER ---
 def extraer_precios_quality(soup):
-    """Extrae y calcula el promedio de los precios listados en la página."""
     texto_pagina = soup.get_text()
     precios = re.findall(r'\$\s*([\d\.]+)', texto_pagina)
     valores_num = []
@@ -2750,17 +2778,8 @@ def extraer_precios_quality(soup):
     return None
 
 def ejecutar_scraper_quality():
-    driver = None
-    reporte = {
-        "nombre": "Quality Center",
-        "estado": "Pendiente",
-        "filas_procesadas": 0,
-        "error": None,
-        "inicio": datetime.now().strftime('%H:%M:%S')
-    }
-    
     try:
-        log("🚀 Iniciando scraper de Quality Center...")
+        log("\nQUALITY")
         driver = iniciar_driver() 
         base_url = "https://qualitycenter.com"
         eventos_procesados = []
@@ -2774,7 +2793,6 @@ def ejecutar_scraper_quality():
         time.sleep(2)
 
         soup = BeautifulSoup(driver.page_source, 'html.parser')
-        
         links_potenciales = soup.find_all('a', href=True)
         links_eventos = []
         for a in links_potenciales:
@@ -2785,12 +2803,12 @@ def ejecutar_scraper_quality():
                 links_eventos.append(href)
         
         links_eventos = list(set(links_eventos))
-        log(f"📊 Se detectaron {len(links_eventos)} links en Quality. Procesando...")
+        log(f"  Se detectaron {len(links_eventos)} links en Quality. Procesando...")
 
-        for i, link in enumerate(links_eventos):
+        for link in links_eventos:
             try:
                 driver.get(link)
-                time.sleep(3)
+                time.sleep(2.5)
                 soup_det = BeautifulSoup(driver.page_source, 'html.parser')
                 
                 nombre = "Sin Título"
@@ -2801,17 +2819,11 @@ def ejecutar_scraper_quality():
                         nombre = texto_t
                         break
                 
-                if nombre == "Sin Título":
-                    header_tag = soup_det.find('section')
-                    if header_tag:
-                        textos_sec = [p.text.strip() for p in header_tag.find_all(['h1', 'h2', 'div']) if len(p.text.strip()) < 40]
-                        if textos_sec:
-                            nombre = textos_sec[0]
-                
                 texto_completo = soup_det.get_text(separator=" | ")
                 match_fecha = re.search(r'(\d{1,2}\s+de\s+[a-zA-Z]+\,?\s+\d{4})', texto_completo)
                 
-                fecha_str = match_fecha.group(1).replace(',', '') if match_fecha else datetime.now().strftime('%Y-%m-%d')
+                fecha_cruda = match_fecha.group(1).replace(',', '') if match_fecha else datetime.now().strftime('%Y-%m-%d')
+                fecha_str = limpiar_y_formatear_fecha(fecha_cruda)
                 
                 lugar = "Quality Espacio"
                 if "teatro" in texto_completo.lower(): lugar = "Quality Teatro"
@@ -2819,6 +2831,7 @@ def ejecutar_scraper_quality():
                 elif "espacio" in texto_completo.lower(): lugar = "Quality Espacio"
 
                 precio_avg = extraer_precios_quality(soup_det)
+                id_generado = generar_id_evento(nombre, fecha_str)
 
                 eventos_procesados.append({
                     'Eventos': nombre, 
@@ -2832,9 +2845,8 @@ def ejecutar_scraper_quality():
                     'Fuente': 'Quality', 
                     'Origen': link, 
                     'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
-                    'ID': ''
+                    'ID': id_generado
                 })
-                log(f"  ✔️ [EXTRAÍDO]: {nombre} ({fecha_str})")
             except Exception as e:
                 continue
 
@@ -2843,42 +2855,26 @@ def ejecutar_scraper_quality():
             df_final = df_final.drop_duplicates(subset=['Eventos', 'Comienza'])
             
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
-            log(f"🤖 Quality — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
+            log(f"  Quality — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']:.4f}")
             
-            # Blindaje de orden de columnas
             df_final = df_final.reindex(columns=COLUMNAS_MAESTRAS, fill_value='')
             df_final = df_final.fillna('').astype(str).replace(['None', 'nan', 'NaN'], '')
             subir_a_google_sheets(df_final, 'Quality historico (Auto)', 'Hoja 1')
-            
-            reporte["filas_procesadas"] = len(df_final)
-            reporte["estado"] = "Exitoso"
+            log(f"  Hoja 'Quality historico (Auto)' actualizada.")
+            log(f"  Se agregaron {len(df_final)} filas nuevas.")
         else:
-            log("❌ Quality: Sin eventos válidos.")
-            reporte["estado"] = "Advertencia: Sin datos"
+            log("  Quality: Sin eventos válidos.")
 
     except Exception as e:
-        log(f"💥 ERROR CRÍTICO EN QUALITY: {e}")
-        reporte["estado"] = "Fallido"
-        reporte["error"] = str(e)
+        log(f"  ERROR CRÍTICO EN QUALITY: {e}")
     finally:
         if driver: driver.quit()
-        reporte["fin"] = datetime.now().strftime('%H:%M:%S')
-        return reporte
 
 
 # --- ENIGMA TICKETS ---
 def ejecutar_scraper_enigma():
-    driver = None
-    reporte = {
-        "nombre": "Enigma Tickets",
-        "estado": "Pendiente",
-        "filas_procesadas": 0,
-        "error": None,
-        "inicio": datetime.now().strftime('%H:%M:%S')
-    }
-    
     try:
-        log("🚀 Iniciando scraper de Enigma Tickets...")
+        log("\nENIGMA TICKETS")
         driver = iniciar_driver()
         base_url = "https://www.enigmatickets.com"
         eventos_procesados = []
@@ -2892,7 +2888,6 @@ def ejecutar_scraper_enigma():
         time.sleep(3)
 
         soup = BeautifulSoup(driver.page_source, 'html.parser')
-        
         links_eventos = []
         for a in soup.find_all('a', href=True):
             href = a['href']
@@ -2901,18 +2896,17 @@ def ejecutar_scraper_enigma():
                 links_eventos.append(href)
         
         links_eventos = list(set(links_eventos))
-        log(f"📊 Enigma: {len(links_eventos)} eventos totales. Filtrando Córdoba...")
+        log(f"  Enigma: {len(links_eventos)} eventos totales. Filtrando Córdoba...")
 
         for link in links_eventos:
             try:
                 driver.get(link)
-                time.sleep(3)
+                time.sleep(2.5)
                 soup_det = BeautifulSoup(driver.page_source, 'html.parser')
                 texto_pagina = soup_det.get_text(separator=" | ")
                 texto_lower = texto_pagina.lower()
                 
                 es_de_cordoba = any(x in texto_lower for x in ['córdoba', 'cordoba', 'studio theater', 'club paraguay', 'quality', 'cba', 'kempes'])
-                
                 if not es_de_cordoba or 'buenos aires' in texto_lower: continue 
 
                 nombre = "Sin Título"
@@ -2927,15 +2921,19 @@ def ejecutar_scraper_enigma():
                 match_corta = re.search(r'(?:lun|mar|mié|mie|jue|vie|sáb|sab|dom)\s+(\d{1,2}/\d{1,2})', texto_pagina, re.I)
                 match_larga = re.search(r'(\d{1,2}\s+de\s+[a-zA-Z]+)', texto_pagina)
                 
-                if match_corta: fecha_str = match_corta.group(1)
-                elif match_larga: fecha_str = match_larga.group(1)
-                else: fecha_str = datetime.now().strftime('%Y-%m-%d')
+                if match_corta: fecha_cruda = match_corta.group(1)
+                elif match_larga: fecha_cruda = match_larga.group(1)
+                else: fecha_cruda = datetime.now().strftime('%Y-%m-%d')
+                
+                fecha_str = limpiar_y_formatear_fecha(fecha_cruda)
                 
                 lugar = "Córdoba"
                 if "kempes" in texto_lower: lugar = "Estadio Kempes"
                 elif "studio theater" in texto_lower: lugar = "Studio Theater"
                 elif "club paraguay" in texto_lower: lugar = "Club Paraguay"
                 elif "quality" in texto_lower: lugar = "Quality"
+
+                id_generado = generar_id_evento(nombre, fecha_str)
 
                 eventos_procesados.append({
                     'Eventos': nombre, 
@@ -2949,10 +2947,8 @@ def ejecutar_scraper_enigma():
                     'Fuente': 'Enigma Tickets', 
                     'Origen': link, 
                     'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
-                    'ID': ''
+                    'ID': id_generado
                 })
-                log(f"  ✔️ [CBA]: {nombre} ({fecha_str}) - {lugar}")
-                
             except Exception as e:
                 continue
 
@@ -2961,42 +2957,26 @@ def ejecutar_scraper_enigma():
             df_final = df_final.drop_duplicates(subset=['Eventos'])
             
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
-            log(f"🤖 Enigma — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
+            log(f"  Enigma — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']:.4f}")
             
-            # Blindaje de orden de columnas
             df_final = df_final.reindex(columns=COLUMNAS_MAESTRAS, fill_value='')
             df_final = df_final.fillna('').astype(str).replace(['None', 'nan', 'NaN'], '')
             subir_a_google_sheets(df_final, 'Enigma historico (Auto)', 'Hoja 1')
-            
-            reporte["filas_procesadas"] = len(df_final)
-            reporte["estado"] = "Exitoso"
+            log(f"  Hoja 'Enigma historico (Auto)' actualizada.")
+            log(f"  Se agregaron {len(df_final)} filas nuevas.")
         else:
-            log("❌ Enigma: Sin eventos válidos.")
-            reporte["estado"] = "Advertencia: Sin datos"
+            log("  Enigma: Sin eventos válidos.")
 
     except Exception as e:
-        log(f"💥 ERROR CRÍTICO EN ENIGMA: {e}")
-        reporte["estado"] = "Fallido"
-        reporte["error"] = str(e)
+        log(f"  ERROR CRÍTICO EN ENIGMA: {e}")
     finally:
         if driver: driver.quit()
-        reporte["fin"] = datetime.now().strftime('%H:%M:%S')
-        return reporte
 
 
 # --- UNIVERSO TICKETS ---
 def ejecutar_scraper_universo():
-    driver = None
-    reporte = {
-        "nombre": "Universo Tickets",
-        "estado": "Pendiente",
-        "filas_procesadas": 0,
-        "error": None,
-        "inicio": datetime.now().strftime('%H:%M:%S')
-    }
-    
     try:
-        log("🚀 Iniciando scraper de Universo Tickets (Con filtro antiprovincias ajenas)...")
+        log("\nUNIVERSO TICKETS")
         driver = iniciar_driver() 
         base_url = "https://universotickets.com"
         eventos_procesados = []
@@ -3009,7 +2989,6 @@ def ejecutar_scraper_universo():
             time.sleep(1.5)
 
         soup = BeautifulSoup(driver.page_source, 'html.parser')
-        
         links_cordoba = set()
         cards = soup.find_all('div', class_=re.compile(r'flex.*flex-col', re.I))
         
@@ -3024,53 +3003,46 @@ def ejecutar_scraper_universo():
                     links_cordoba.add(href)
 
         links_cordoba = list(links_cordoba)
-        log(f"📊 Se detectaron {len(links_cordoba)} links iniciales. Validando fichas...")
+        log(f"  Se detectaron {len(links_cordoba)} links iniciales. Validando fichas...")
 
         for link in links_cordoba:
             try:
                 driver.get(link)
-                time.sleep(3.5)
+                time.sleep(3)
                 soup_det = BeautifulSoup(driver.page_source, 'html.parser')
                 
                 texto_ficha = soup_det.get_text(separator=" | ")
                 texto_lower = texto_ficha.lower()
 
-                # 🛑 FILTRO ANTIPROVINCIAS AJENAS
                 if any(prov in texto_lower for prov in ['en tucumán', 'en tucuman', 'en buenos aires', 'en rosario', 'en mendoza', 'en salta']):
                     if 'en córdoba' not in texto_lower and 'en cordoba' not in texto_lower:
                         continue
 
-                # TÍTULO REAL
                 nombre = "Sin Título"
                 titulo_el = soup_det.find('div', class_=re.compile(r'containerTitulo|row.*col', re.I))
                 if titulo_el:
                     nombre = titulo_el.text.strip()
                 else:
                     h1 = soup_det.find('h1')
-                    if h1:
-                        nombre = h1.text.strip()
+                    if h1: nombre = h1.text.strip()
 
                 nombre = re.sub(r'\s+en\s+Córdoba.*', '', nombre, flags=re.I).strip()
                 nombre = nombre.split('\n')[0].strip()
 
-                # 🛑 FILTRO EXTRA EN TÍTULO
                 if any(prov in nombre.lower() for prov in ['tucumán', 'tucuman', 'buenos aires', 'rosario']):
                     continue
 
-                # FECHA LIMPIA
                 match_fecha = re.search(r'(\d{1,2}\s+(?:de\s+)?(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre))', texto_ficha, re.I)
-                fecha_str = match_fecha.group(1) if match_fecha else "Fecha a confirmar"
+                fecha_cruda = match_fecha.group(1) if match_fecha else "Fecha a confirmar"
+                fecha_str = limpiar_y_formatear_fecha(fecha_cruda)
 
-                # LUGAR
                 lugar = "Córdoba"
-                if "kempes" in texto_lower or "ramón cárcano" in texto_lower:
-                    lugar = "Estadio Kempes"
-                elif "studio theater" in texto_lower:
-                    lugar = "Studio Theater"
-                elif "club paraguay" in texto_lower:
-                    lugar = "Club Paraguay"
-                elif "quality" in texto_lower:
-                    lugar = "Quality"
+                if "kempes" in texto_lower or "ramón cárcano" in texto_lower: lugar = "Estadio Kempes"
+                elif "studio theater" in texto_lower: lugar = "Studio Theater"
+                elif "club paraguay" in texto_lower: lugar = "Club Paraguay"
+                elif "quality" in texto_lower: lugar = "Quality"
+
+                id_generado = generar_id_evento(nombre, fecha_str)
 
                 eventos_procesados.append({
                     'Eventos': nombre,
@@ -3084,10 +3056,8 @@ def ejecutar_scraper_universo():
                     'Fuente': 'Universo Tickets',
                     'Origen': link,
                     'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
-                    'ID': ''
+                    'ID': id_generado
                 })
-                log(f"  ✔️ [FILTRADO Y LIMPIO]: {nombre} | {fecha_str} | {lugar}")
-
             except Exception as e:
                 continue
 
@@ -3095,30 +3065,21 @@ def ejecutar_scraper_universo():
             df_final = pd.DataFrame(eventos_procesados)
             df_final = df_final.drop_duplicates(subset=['Eventos'])
             
-            # Clasificador IA
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
-            log(f"🤖 Universo — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
+            log(f"  Universo — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']:.4f}")
             
-            # Blindaje de orden de columnas
             df_final = df_final.reindex(columns=COLUMNAS_MAESTRAS, fill_value='')
             df_final = df_final.fillna('').astype(str).replace(['None', 'nan', 'NaN'], '')
             subir_a_google_sheets(df_final, 'Universo historico (Auto)', 'Hoja 1')
-            
-            reporte["filas_procesadas"] = len(df_final)
-            reporte["estado"] = "Exitoso"
+            log(f"  Hoja 'Universo historico (Auto)' actualizada.")
+            log(f"  Se agregaron {len(df_final)} filas nuevas.")
         else:
-            log("❌ Universo: Sin eventos válidos.")
-            reporte["estado"] = "Advertencia: Sin datos"
+            log("  Universo: Sin eventos válidos.")
 
     except Exception as e:
-        log(f"💥 Error crítico en Universo Tickets: {e}")
-        reporte["estado"] = "Fallido"
-        reporte["error"] = str(e)
+        log(f"  ERROR CRÍTICO EN UNIVERSO: {e}")
     finally:
-        if driver:
-            driver.quit()
-        reporte["fin"] = datetime.now().strftime('%H:%M:%S')
-        return reporte
+        if driver: driver.quit()
 
 # --- EJECUCIÓN ---
 log('')
