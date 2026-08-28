@@ -2717,13 +2717,21 @@ log('FAMAF')
 ejecutar_scraper_famaf()
 
 # =============================================================================
-#                              NUEVOS SCRAPERS (QUALITY, ENIGMA, UNIVERSO)
+#                    NUEVOS SCRAPERS (QUALITY, ENIGMA, UNIVERSO)
 # =============================================================================
 import time
 import re
 import pandas as pd
 from datetime import datetime
 from bs4 import BeautifulSoup
+
+# --- LISTA OFICIAL DE COLUMNAS (Orden maestro para Google Sheets) ---
+COLUMNAS_MAESTRAS = [
+    'Eventos', 'Lugar', 'Comienza', 'Finaliza', 
+    'Tipo de evento', 'Detalle', 'Alcance', 
+    'Costo de entrada', 'Fuente', 'Origen', 
+    'fecha de carga', 'ID', 'confianza_clasificacion'
+]
 
 # --- QUALITY CENTER ---
 def extraer_precios_quality(soup):
@@ -2803,7 +2811,6 @@ def ejecutar_scraper_quality():
                 texto_completo = soup_det.get_text(separator=" | ")
                 match_fecha = re.search(r'(\d{1,2}\s+de\s+[a-zA-Z]+\,?\s+\d{4})', texto_completo)
                 
-                # ACÁ ESTÁ LA MAGIA: .replace(',', '') elimina la coma
                 fecha_str = match_fecha.group(1).replace(',', '') if match_fecha else datetime.now().strftime('%Y-%m-%d')
                 
                 lugar = "Quality Espacio"
@@ -2813,7 +2820,6 @@ def ejecutar_scraper_quality():
 
                 precio_avg = extraer_precios_quality(soup_det)
 
-                # DICCIONARIO CON ID AL FINAL
                 eventos_procesados.append({
                     'Eventos': nombre, 
                     'Lugar': lugar, 
@@ -2839,6 +2845,8 @@ def ejecutar_scraper_quality():
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
             log(f"🤖 Quality — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
             
+            # Blindaje de orden de columnas
+            df_final = df_final.reindex(columns=COLUMNAS_MAESTRAS, fill_value='')
             df_final = df_final.fillna('').astype(str).replace(['None', 'nan', 'NaN'], '')
             subir_a_google_sheets(df_final, 'Quality historico (Auto)', 'Hoja 1')
             
@@ -2858,7 +2866,6 @@ def ejecutar_scraper_quality():
         return reporte
 
 
-# --- ENIGMA TICKETS ---
 # --- ENIGMA TICKETS ---
 def ejecutar_scraper_enigma():
     driver = None
@@ -2930,7 +2937,6 @@ def ejecutar_scraper_enigma():
                 elif "club paraguay" in texto_lower: lugar = "Club Paraguay"
                 elif "quality" in texto_lower: lugar = "Quality"
 
-                # ACÁ ESTÁ EL AGREGADO DEL ID AL FINAL
                 eventos_procesados.append({
                     'Eventos': nombre, 
                     'Lugar': lugar, 
@@ -2957,6 +2963,8 @@ def ejecutar_scraper_enigma():
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
             log(f"🤖 Enigma — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
             
+            # Blindaje de orden de columnas
+            df_final = df_final.reindex(columns=COLUMNAS_MAESTRAS, fill_value='')
             df_final = df_final.fillna('').astype(str).replace(['None', 'nan', 'NaN'], '')
             subir_a_google_sheets(df_final, 'Enigma historico (Auto)', 'Hoja 1')
             
@@ -2975,6 +2983,7 @@ def ejecutar_scraper_enigma():
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
 
+
 # --- UNIVERSO TICKETS ---
 def ejecutar_scraper_universo():
     driver = None
@@ -2988,7 +2997,7 @@ def ejecutar_scraper_universo():
     
     try:
         log("🚀 Iniciando scraper de Universo Tickets (Con filtro antiprovincias ajenas)...")
-        driver = iniciar_driver() # Usamos el driver unificado
+        driver = iniciar_driver() 
         base_url = "https://universotickets.com"
         eventos_procesados = []
         
@@ -3063,7 +3072,6 @@ def ejecutar_scraper_universo():
                 elif "quality" in texto_lower:
                     lugar = "Quality"
 
-                # DICCIONARIO CON 'ID' AL FINAL
                 eventos_procesados.append({
                     'Eventos': nombre,
                     'Lugar': lugar,
@@ -3083,7 +3091,6 @@ def ejecutar_scraper_universo():
             except Exception as e:
                 continue
 
-        # --- INTEGRACIÓN CON EL SISTEMA MAESTRO ---
         if eventos_procesados:
             df_final = pd.DataFrame(eventos_procesados)
             df_final = df_final.drop_duplicates(subset=['Eventos'])
@@ -3092,7 +3099,8 @@ def ejecutar_scraper_universo():
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
             log(f"🤖 Universo — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
             
-            # Formateo y subida
+            # Blindaje de orden de columnas
+            df_final = df_final.reindex(columns=COLUMNAS_MAESTRAS, fill_value='')
             df_final = df_final.fillna('').astype(str).replace(['None', 'nan', 'NaN'], '')
             subir_a_google_sheets(df_final, 'Universo historico (Auto)', 'Hoja 1')
             
@@ -3143,7 +3151,7 @@ dict_fuentes = {
 def procesar_duplicados_y_normalizar():
     print("🚀 Iniciando proceso de limpieza con Jerarquía de Fuentes...")
 
-    # --- CIUDADES BLACKLIST (no permitidas) ---
+  
     # --- CIUDADES BLACKLIST (no permitidas) ---
     ciudades_blacklist = [
         r'neuqu[eé]n',
