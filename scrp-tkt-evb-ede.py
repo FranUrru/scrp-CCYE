@@ -2716,7 +2716,359 @@ log('')
 log('FAMAF')
 ejecutar_scraper_famaf()
 
+# =============================================================================
+#                              NUEVOS SCRAPERS (QUALITY, ENIGMA, UNIVERSO)
+# =============================================================================
+import time
+import re
+import pandas as pd
+from datetime import datetime
+from bs4 import BeautifulSoup
 
+# --- QUALITY CENTER ---
+def extraer_precios_quality(soup):
+    """Extrae y calcula el promedio de los precios listados en la página."""
+    texto_pagina = soup.get_text()
+    precios = re.findall(r'\$\s*([\d\.]+)', texto_pagina)
+    valores_num = []
+    for p in precios:
+        p_limpio = p.replace('.', '').strip()
+        if p_limpio.isdigit():
+            val = float(p_limpio)
+            if val > 500:
+                valores_num.append(val)
+    if valores_num:
+        return sum(valores_num) / len(valores_num)
+    return None
+
+def ejecutar_scraper_quality():
+    driver = None
+    reporte = {
+        "nombre": "Quality Center",
+        "estado": "Pendiente",
+        "filas_procesadas": 0,
+        "error": None,
+        "inicio": datetime.now().strftime('%H:%M:%S')
+    }
+    
+    try:
+        log("🚀 Iniciando scraper de Quality Center...")
+        driver = iniciar_driver() # Usamos el driver unificado del maestro
+        base_url = "https://qualitycenter.com"
+        eventos_procesados = []
+        
+        driver.get(base_url)
+        time.sleep(6)
+        
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight/2);")
+        time.sleep(2)
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(2)
+
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        
+        links_potenciales = soup.find_all('a', href=True)
+        links_eventos = []
+        for a in links_potenciales:
+            href = a['href']
+            if any(x in href.lower() for x in ['/entradas', '/evento', '/show']) and 'qualitycenter.com' in href or not href.startswith('http'):
+                if not href.startswith('http'):
+                    href = base_url + href
+                links_eventos.append(href)
+        
+        links_eventos = list(set(links_eventos))
+        log(f"📊 Se detectaron {len(links_eventos)} links en Quality. Procesando...")
+
+        for i, link in enumerate(links_eventos):
+            try:
+                driver.get(link)
+                time.sleep(3)
+                soup_det = BeautifulSoup(driver.page_source, 'html.parser')
+                
+                nombre = "Sin Título"
+                posibles_titulos = soup_det.find_all(['h1', 'h2', 'span'], class_=re.compile('heading|title|titulo', re.I))
+                for t in posibles_titulos:
+                    texto_t = t.text.strip()
+                    if texto_t and len(texto_t) < 60 and not "de agosto" in texto_t.lower():
+                        nombre = texto_t
+                        break
+                
+                if nombre == "Sin Título":
+                    header_tag = soup_det.find('section')
+                    if header_tag:
+                        textos_sec = [p.text.strip() for p in header_tag.find_all(['h1', 'h2', 'div']) if len(p.text.strip()) < 40]
+                        if textos_sec:
+                            nombre = textos_sec[0]
+                
+                texto_completo = soup_det.get_text(separator=" | ")
+                match_fecha = re.search(r'(\d{1,2}\s+de\s+[a-zA-Z]+\,?\s+\d{4})', texto_completo)
+                fecha_str = match_fecha.group(1) if match_fecha else datetime.now().strftime('%Y-%m-%d')
+                
+                lugar = "Quality Espacio"
+                if "teatro" in texto_completo.lower(): lugar = "Quality Teatro"
+                elif "arena" in texto_completo.lower(): lugar = "Quality Arena"
+                elif "espacio" in texto_completo.lower(): lugar = "Quality Espacio"
+
+                precio_avg = extraer_precios_quality(soup_det)
+
+                eventos_procesados.append({
+                    'Eventos': nombre, 'Lugar': lugar, 'Comienza': fecha_str, 'Finaliza': fecha_str,
+                    'Tipo de evento': None, 'Detalle': None, 'Alcance': None, 'Costo de entrada': precio_avg if precio_avg else "",
+                    'Fuente': 'Quality', 'Origen': link, 'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+                })
+                log(f"  ✔️ [EXTRAÍDO]: {nombre} ({fecha_str})")
+            except Exception as e:
+                continue
+
+        if eventos_procesados:
+            df_final = pd.DataFrame(eventos_procesados)
+            df_final = df_final.drop_duplicates(subset=['Eventos', 'Comienza'])
+            
+            df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
+            log(f"🤖 Quality — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
+            
+            df_final = df_final.fillna('').astype(str).replace(['None', 'nan', 'NaN'], '')
+            subir_a_google_sheets(df_final, 'Quality historico (Auto)', 'Hoja 1')
+            
+            reporte["filas_procesadas"] = len(df_final)
+            reporte["estado"] = "Exitoso"
+        else:
+            log("❌ Quality: Sin eventos válidos.")
+            reporte["estado"] = "Advertencia: Sin datos"
+
+    except Exception as e:
+        log(f"💥 ERROR CRÍTICO EN QUALITY: {e}")
+        reporte["estado"] = "Fallido"
+        reporte["error"] = str(e)
+    finally:
+        if driver: driver.quit()
+        reporte["fin"] = datetime.now().strftime('%H:%M:%S')
+        return reporte
+
+
+# --- ENIGMA TICKETS ---
+def ejecutar_scraper_enigma():
+    driver = None
+    reporte = {
+        "nombre": "Enigma Tickets",
+        "estado": "Pendiente",
+        "filas_procesadas": 0,
+        "error": None,
+        "inicio": datetime.now().strftime('%H:%M:%S')
+    }
+    
+    try:
+        log("🚀 Iniciando scraper de Enigma Tickets...")
+        driver = iniciar_driver()
+        base_url = "https://www.enigmatickets.com"
+        eventos_procesados = []
+        
+        driver.get(base_url)
+        time.sleep(6)
+        
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight/2);")
+        time.sleep(2)
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(3)
+
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        
+        links_eventos = []
+        for a in soup.find_all('a', href=True):
+            href = a['href']
+            if '/event/' in href:
+                if not href.startswith('http'): href = base_url + href
+                links_eventos.append(href)
+        
+        links_eventos = list(set(links_eventos))
+        log(f"📊 Enigma: {len(links_eventos)} eventos totales. Filtrando Córdoba...")
+
+        for link in links_eventos:
+            try:
+                driver.get(link)
+                time.sleep(3)
+                soup_det = BeautifulSoup(driver.page_source, 'html.parser')
+                texto_pagina = soup_det.get_text(separator=" | ")
+                texto_lower = texto_pagina.lower()
+                
+                es_de_cordoba = any(x in texto_lower for x in ['córdoba', 'cordoba', 'studio theater', 'club paraguay', 'quality', 'cba', 'kempes'])
+                
+                if not es_de_cordoba or 'buenos aires' in texto_lower: continue 
+
+                nombre = "Sin Título"
+                if soup_det.title:
+                    titulo_pagina = soup_det.title.text.strip()
+                    nombre = re.split(r'\||-', titulo_pagina)[0].strip()
+                
+                if len(nombre) <= 3 or "enigma" in nombre.lower() or "córdoba" in nombre.lower():
+                    h1 = soup_det.find('h1')
+                    nombre = h1.text.strip() if h1 else "Evento Enigma"
+
+                match_corta = re.search(r'(?:lun|mar|mié|mie|jue|vie|sáb|sab|dom)\s+(\d{1,2}/\d{1,2})', texto_pagina, re.I)
+                match_larga = re.search(r'(\d{1,2}\s+de\s+[a-zA-Z]+)', texto_pagina)
+                
+                if match_corta: fecha_str = match_corta.group(1)
+                elif match_larga: fecha_str = match_larga.group(1)
+                else: fecha_str = datetime.now().strftime('%Y-%m-%d')
+                
+                lugar = "Córdoba"
+                if "kempes" in texto_lower: lugar = "Estadio Kempes"
+                elif "studio theater" in texto_lower: lugar = "Studio Theater"
+                elif "club paraguay" in texto_lower: lugar = "Club Paraguay"
+                elif "quality" in texto_lower: lugar = "Quality"
+
+                eventos_procesados.append({
+                    'Eventos': nombre, 'Lugar': lugar, 'Comienza': fecha_str, 'Finaliza': fecha_str,
+                    'Tipo de evento': None, 'Detalle': None, 'Alcance': None, 'Costo de entrada': "",
+                    'Fuente': 'Enigma Tickets', 'Origen': link, 'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+                })
+                log(f"  ✔️ [CBA]: {nombre} ({fecha_str}) - {lugar}")
+                
+            except Exception as e:
+                continue
+
+        if eventos_procesados:
+            df_final = pd.DataFrame(eventos_procesados)
+            df_final = df_final.drop_duplicates(subset=['Eventos'])
+            
+            df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
+            log(f"🤖 Enigma — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
+            
+            df_final = df_final.fillna('').astype(str).replace(['None', 'nan', 'NaN'], '')
+            subir_a_google_sheets(df_final, 'Enigma historico (Auto)', 'Hoja 1')
+            
+            reporte["filas_procesadas"] = len(df_final)
+            reporte["estado"] = "Exitoso"
+        else:
+            log("❌ Enigma: Sin eventos válidos.")
+            reporte["estado"] = "Advertencia: Sin datos"
+
+    except Exception as e:
+        log(f"💥 ERROR CRÍTICO EN ENIGMA: {e}")
+        reporte["estado"] = "Fallido"
+        reporte["error"] = str(e)
+    finally:
+        if driver: driver.quit()
+        reporte["fin"] = datetime.now().strftime('%H:%M:%S')
+        return reporte
+
+
+# --- UNIVERSO TICKETS ---
+def ejecutar_scraper_universo():
+    driver = None
+    reporte = {
+        "nombre": "Universo Tickets",
+        "estado": "Pendiente",
+        "filas_procesadas": 0,
+        "error": None,
+        "inicio": datetime.now().strftime('%H:%M:%S')
+    }
+    
+    try:
+        log("🚀 Iniciando scraper de Universo Tickets...")
+        driver = iniciar_driver()
+        base_url = "https://universotickets.com"
+        eventos_procesados = []
+        
+        driver.get(base_url)
+        time.sleep(6)
+        
+        for _ in range(3):
+            driver.execute_script("window.scrollBy(0, 600);")
+            time.sleep(1.5)
+
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        links_cordoba = set()
+        cards = soup.find_all('div', class_=re.compile(r'flex.*flex-col', re.I))
+        
+        for card in cards:
+            texto_card = card.get_text(separator=" | ").lower()
+            if any(x in texto_card for x in ['córdoba', 'cordoba', 'kempes', 'studio theater', 'quality']):
+                a_tag = card.find('a', attrs={'data-testid': 'home-event-card-link'}) or card.find('a', href=True)
+                if a_tag:
+                    href = a_tag['href']
+                    if not href.startswith('http'):
+                        href = base_url + href if href.startswith('/') else base_url + '/' + href
+                    links_cordoba.add(href)
+
+        links_cordoba = list(links_cordoba)
+        log(f"📊 Universo: {len(links_cordoba)} links detectados. Validando...")
+
+        for link in links_cordoba:
+            try:
+                driver.get(link)
+                time.sleep(3.5)
+                soup_det = BeautifulSoup(driver.page_source, 'html.parser')
+                texto_ficha = soup_det.get_text(separator=" | ")
+                texto_lower = texto_ficha.lower()
+
+                if any(prov in texto_lower for prov in ['en tucumán', 'en tucuman', 'en buenos aires', 'en rosario', 'en mendoza', 'en salta']):
+                    if 'en córdoba' not in texto_lower and 'en cordoba' not in texto_lower: continue
+
+                nombre = "Sin Título"
+                titulo_el = soup_det.find('div', class_=re.compile(r'containerTitulo|row.*col', re.I))
+                if titulo_el: nombre = titulo_el.text.strip()
+                else:
+                    h1 = soup_det.find('h1')
+                    if h1: nombre = h1.text.strip()
+
+                nombre = re.sub(r'\s+en\s+Córdoba.*', '', nombre, flags=re.I).strip()
+                nombre = nombre.split('\n')[0].strip()
+
+                if any(prov in nombre.lower() for prov in ['tucumán', 'tucuman', 'buenos aires', 'rosario']): continue
+
+                match_fecha = re.search(r'(\d{1,2}\s+(?:de\s+)?(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre))', texto_ficha, re.I)
+                fecha_str = match_fecha.group(1) if match_fecha else "Fecha a confirmar"
+
+                lugar = "Córdoba"
+                if "kempes" in texto_lower or "ramón cárcano" in texto_lower: lugar = "Estadio Kempes"
+                elif "studio theater" in texto_lower: lugar = "Studio Theater"
+                elif "club paraguay" in texto_lower: lugar = "Club Paraguay"
+                elif "quality" in texto_lower: lugar = "Quality"
+
+                eventos_procesados.append({
+                    'Eventos': nombre, 'Lugar': lugar, 'Comienza': fecha_str, 'Finaliza': fecha_str,
+                    'Tipo de evento': None, 'Detalle': None, 'Alcance': None, 'Costo de entrada': "",
+                    'Fuente': 'Universo Tickets', 'Origen': link, 'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+                })
+                log(f"  ✔️ [CBA]: {nombre} | {fecha_str}")
+            except: continue
+
+        if eventos_procesados:
+            df_final = pd.DataFrame(eventos_procesados)
+            df_final = df_final.drop_duplicates(subset=['Eventos'])
+            
+            df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
+            log(f"🤖 Universo — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
+            
+            df_final = df_final.fillna('').astype(str).replace(['None', 'nan', 'NaN'], '')
+            subir_a_google_sheets(df_final, 'Universo historico (Auto)', 'Hoja 1')
+            
+            reporte["filas_procesadas"] = len(df_final)
+            reporte["estado"] = "Exitoso"
+        else:
+            log("❌ Universo: Sin eventos válidos.")
+            reporte["estado"] = "Advertencia: Sin datos"
+
+    except Exception as e:
+        log(f"💥 ERROR CRÍTICO EN UNIVERSO: {e}")
+        reporte["estado"] = "Fallido"
+        reporte["error"] = str(e)
+    finally:
+        if driver: driver.quit()
+        reporte["fin"] = datetime.now().strftime('%H:%M:%S')
+        return reporte
+
+
+# --- EJECUCIÓN ---
+log('')
+ejecutar_scraper_quality()
+
+log('')
+ejecutar_scraper_enigma()
+
+log('')
+ejecutar_scraper_universo()
 
 #Importante el orden. Marca jerarquía. El primero se mantiene siempre a la hora de comparar duplicados y así...
 dict_fuentes = {
@@ -2730,7 +3082,10 @@ dict_fuentes = {
     'Agencia Turismo Cba': 'Turismo CBA (Auto)',
     'Ente Metropolitano': 'Metropolitano historico (Auto)',
     'eventbrite': 'base_h_scrp_eventbrite',
-    'AFA': 'Fixture Fútbol Córdoba'
+    'AFA': 'Fixture Fútbol Córdoba',
+    'Quality': 'Quality historico (Auto)',          
+    'Enigma Tickets': 'Enigma historico (Auto)',    
+    'Universo Tickets': 'Universo historico (Auto)' 
 }
 
 def procesar_duplicados_y_normalizar():
@@ -3095,6 +3450,9 @@ def procesar_duplicados_y_normalizar():
             'Agencia Turismo Cba': 'TCB',
             'Ente Metropolitano': 'TCM',
             'AFA': 'AFA',
+            'Quality': 'QLT',               
+            'Enigma Tickets': 'ENI',        
+            'Universo Tickets': 'UNI',      
         }
         ids_generados = 0
         fuentes_con_sufijos = ['Ferias y Congresos', 'AFA']
