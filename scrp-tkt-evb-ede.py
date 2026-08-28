@@ -2859,6 +2859,7 @@ def ejecutar_scraper_quality():
 
 
 # --- ENIGMA TICKETS ---
+# --- ENIGMA TICKETS ---
 def ejecutar_scraper_enigma():
     driver = None
     reporte = {
@@ -2929,10 +2930,20 @@ def ejecutar_scraper_enigma():
                 elif "club paraguay" in texto_lower: lugar = "Club Paraguay"
                 elif "quality" in texto_lower: lugar = "Quality"
 
+                # ACÁ ESTÁ EL AGREGADO DEL ID AL FINAL
                 eventos_procesados.append({
-                    'Eventos': nombre, 'Lugar': lugar, 'Comienza': fecha_str, 'Finaliza': fecha_str,
-                    'Tipo de evento': None, 'Detalle': None, 'Alcance': None, 'Costo de entrada': "",
-                    'Fuente': 'Enigma Tickets', 'Origen': link, 'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+                    'Eventos': nombre, 
+                    'Lugar': lugar, 
+                    'Comienza': fecha_str, 
+                    'Finaliza': fecha_str,
+                    'Tipo de evento': None, 
+                    'Detalle': None, 
+                    'Alcance': None, 
+                    'Costo de entrada': "",
+                    'Fuente': 'Enigma Tickets', 
+                    'Origen': link, 
+                    'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
+                    'ID': ''
                 })
                 log(f"  ✔️ [CBA]: {nombre} ({fecha_str}) - {lugar}")
                 
@@ -2963,7 +2974,6 @@ def ejecutar_scraper_enigma():
         if driver: driver.quit()
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
-
 
 # --- UNIVERSO TICKETS ---
 def ejecutar_scraper_universo():
