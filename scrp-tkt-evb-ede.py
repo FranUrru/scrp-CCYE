@@ -2753,7 +2753,7 @@ def ejecutar_scraper_quality():
     
     try:
         log("🚀 Iniciando scraper de Quality Center...")
-        driver = iniciar_driver() # Usamos el driver unificado del maestro
+        driver = iniciar_driver() 
         base_url = "https://qualitycenter.com"
         eventos_procesados = []
         
@@ -2802,7 +2802,9 @@ def ejecutar_scraper_quality():
                 
                 texto_completo = soup_det.get_text(separator=" | ")
                 match_fecha = re.search(r'(\d{1,2}\s+de\s+[a-zA-Z]+\,?\s+\d{4})', texto_completo)
-                fecha_str = match_fecha.group(1) if match_fecha else datetime.now().strftime('%Y-%m-%d')
+                
+                # ACÁ ESTÁ LA MAGIA: .replace(',', '') elimina la coma
+                fecha_str = match_fecha.group(1).replace(',', '') if match_fecha else datetime.now().strftime('%Y-%m-%d')
                 
                 lugar = "Quality Espacio"
                 if "teatro" in texto_completo.lower(): lugar = "Quality Teatro"
@@ -2811,10 +2813,20 @@ def ejecutar_scraper_quality():
 
                 precio_avg = extraer_precios_quality(soup_det)
 
+                # DICCIONARIO CON ID AL FINAL
                 eventos_procesados.append({
-                    'Eventos': nombre, 'Lugar': lugar, 'Comienza': fecha_str, 'Finaliza': fecha_str,
-                    'Tipo de evento': None, 'Detalle': None, 'Alcance': None, 'Costo de entrada': precio_avg if precio_avg else "",
-                    'Fuente': 'Quality', 'Origen': link, 'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+                    'Eventos': nombre, 
+                    'Lugar': lugar, 
+                    'Comienza': fecha_str, 
+                    'Finaliza': fecha_str,
+                    'Tipo de evento': None, 
+                    'Detalle': None, 
+                    'Alcance': None, 
+                    'Costo de entrada': precio_avg if precio_avg else "",
+                    'Fuente': 'Quality', 
+                    'Origen': link, 
+                    'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
+                    'ID': ''
                 })
                 log(f"  ✔️ [EXTRAÍDO]: {nombre} ({fecha_str})")
             except Exception as e:
@@ -2965,8 +2977,8 @@ def ejecutar_scraper_universo():
     }
     
     try:
-        log("🚀 Iniciando scraper de Universo Tickets...")
-        driver = iniciar_driver()
+        log("🚀 Iniciando scraper de Universo Tickets (Con filtro antiprovincias ajenas)...")
+        driver = iniciar_driver() # Usamos el driver unificado
         base_url = "https://universotickets.com"
         eventos_procesados = []
         
@@ -2978,6 +2990,7 @@ def ejecutar_scraper_universo():
             time.sleep(1.5)
 
         soup = BeautifulSoup(driver.page_source, 'html.parser')
+        
         links_cordoba = set()
         cards = soup.find_all('div', class_=re.compile(r'flex.*flex-col', re.I))
         
@@ -2992,55 +3005,84 @@ def ejecutar_scraper_universo():
                     links_cordoba.add(href)
 
         links_cordoba = list(links_cordoba)
-        log(f"📊 Universo: {len(links_cordoba)} links detectados. Validando...")
+        log(f"📊 Se detectaron {len(links_cordoba)} links iniciales. Validando fichas...")
 
         for link in links_cordoba:
             try:
                 driver.get(link)
                 time.sleep(3.5)
                 soup_det = BeautifulSoup(driver.page_source, 'html.parser')
+                
                 texto_ficha = soup_det.get_text(separator=" | ")
                 texto_lower = texto_ficha.lower()
 
+                # 🛑 FILTRO ANTIPROVINCIAS AJENAS
                 if any(prov in texto_lower for prov in ['en tucumán', 'en tucuman', 'en buenos aires', 'en rosario', 'en mendoza', 'en salta']):
-                    if 'en córdoba' not in texto_lower and 'en cordoba' not in texto_lower: continue
+                    if 'en córdoba' not in texto_lower and 'en cordoba' not in texto_lower:
+                        continue
 
+                # TÍTULO REAL
                 nombre = "Sin Título"
                 titulo_el = soup_det.find('div', class_=re.compile(r'containerTitulo|row.*col', re.I))
-                if titulo_el: nombre = titulo_el.text.strip()
+                if titulo_el:
+                    nombre = titulo_el.text.strip()
                 else:
                     h1 = soup_det.find('h1')
-                    if h1: nombre = h1.text.strip()
+                    if h1:
+                        nombre = h1.text.strip()
 
                 nombre = re.sub(r'\s+en\s+Córdoba.*', '', nombre, flags=re.I).strip()
                 nombre = nombre.split('\n')[0].strip()
 
-                if any(prov in nombre.lower() for prov in ['tucumán', 'tucuman', 'buenos aires', 'rosario']): continue
+                # 🛑 FILTRO EXTRA EN TÍTULO
+                if any(prov in nombre.lower() for prov in ['tucumán', 'tucuman', 'buenos aires', 'rosario']):
+                    continue
 
+                # FECHA LIMPIA
                 match_fecha = re.search(r'(\d{1,2}\s+(?:de\s+)?(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre))', texto_ficha, re.I)
                 fecha_str = match_fecha.group(1) if match_fecha else "Fecha a confirmar"
 
+                # LUGAR
                 lugar = "Córdoba"
-                if "kempes" in texto_lower or "ramón cárcano" in texto_lower: lugar = "Estadio Kempes"
-                elif "studio theater" in texto_lower: lugar = "Studio Theater"
-                elif "club paraguay" in texto_lower: lugar = "Club Paraguay"
-                elif "quality" in texto_lower: lugar = "Quality"
+                if "kempes" in texto_lower or "ramón cárcano" in texto_lower:
+                    lugar = "Estadio Kempes"
+                elif "studio theater" in texto_lower:
+                    lugar = "Studio Theater"
+                elif "club paraguay" in texto_lower:
+                    lugar = "Club Paraguay"
+                elif "quality" in texto_lower:
+                    lugar = "Quality"
 
+                # DICCIONARIO CON 'ID' AL FINAL
                 eventos_procesados.append({
-                    'Eventos': nombre, 'Lugar': lugar, 'Comienza': fecha_str, 'Finaliza': fecha_str,
-                    'Tipo de evento': None, 'Detalle': None, 'Alcance': None, 'Costo de entrada': "",
-                    'Fuente': 'Universo Tickets', 'Origen': link, 'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+                    'Eventos': nombre,
+                    'Lugar': lugar,
+                    'Comienza': fecha_str,
+                    'Finaliza': fecha_str,
+                    'Tipo de evento': None,
+                    'Detalle': None,
+                    'Alcance': None,
+                    'Costo de entrada': "",
+                    'Fuente': 'Universo Tickets',
+                    'Origen': link,
+                    'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
+                    'ID': ''
                 })
-                log(f"  ✔️ [CBA]: {nombre} | {fecha_str}")
-            except: continue
+                log(f"  ✔️ [FILTRADO Y LIMPIO]: {nombre} | {fecha_str} | {lugar}")
 
+            except Exception as e:
+                continue
+
+        # --- INTEGRACIÓN CON EL SISTEMA MAESTRO ---
         if eventos_procesados:
             df_final = pd.DataFrame(eventos_procesados)
             df_final = df_final.drop_duplicates(subset=['Eventos'])
             
+            # Clasificador IA
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
             log(f"🤖 Universo — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
             
+            # Formateo y subida
             df_final = df_final.fillna('').astype(str).replace(['None', 'nan', 'NaN'], '')
             subir_a_google_sheets(df_final, 'Universo historico (Auto)', 'Hoja 1')
             
@@ -3051,14 +3093,14 @@ def ejecutar_scraper_universo():
             reporte["estado"] = "Advertencia: Sin datos"
 
     except Exception as e:
-        log(f"💥 ERROR CRÍTICO EN UNIVERSO: {e}")
+        log(f"💥 Error crítico en Universo Tickets: {e}")
         reporte["estado"] = "Fallido"
         reporte["error"] = str(e)
     finally:
-        if driver: driver.quit()
+        if driver:
+            driver.quit()
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
-
 
 # --- EJECUCIÓN ---
 log('')
