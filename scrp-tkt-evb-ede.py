@@ -1522,10 +1522,10 @@ ejecutar_scraper_eden()
 # # Ahora, pase lo que pase, resultado_final contiene el diccionario
 # #print(f"Estado final registrado: {resultado_final['estado']}")
  # Aquí puedes usar resultado_final para subirlo a otro lado o mostrarlo
- import smtplib
- from email.mime.text import MIMEText
- from email.mime.multipart import MIMEMultipart
- import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import os
 def enviar_log_smtp(cuerpo_log, lista_destinatarios):
     """Envía el log acumulado a múltiples correos usando SMTP (reemplaza Gmail API)."""
     try:
