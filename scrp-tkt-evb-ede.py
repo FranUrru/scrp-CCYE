@@ -1521,53 +1521,53 @@ ejecutar_scraper_eden()
 #             log("🛑 Fallo en eventbrite (Intentos agotados)")
 # # Ahora, pase lo que pase, resultado_final contiene el diccionario
 # #print(f"Estado final registrado: {resultado_final['estado']}")
-# # Aquí puedes usar resultado_final para subirlo a otro lado o mostrarlo
-# import smtplib
-# from email.mime.text import MIMEText
-# from email.mime.multipart import MIMEMultipart
-# import os
-# def enviar_log_smtp(cuerpo_log, lista_destinatarios):
-#     """Envía el log acumulado a múltiples correos usando SMTP (reemplaza Gmail API)."""
-#     try:
-#         # Configuración desde variables de entorno para seguridad
-#         remitente = "rmansilla@cordobaacelera.com.ar"  # El mail que generó la App Password
-#         password = os.environ.get('EMAIL_APP_PASSWORD')
+ # Aquí puedes usar resultado_final para subirlo a otro lado o mostrarlo
+ import smtplib
+ from email.mime.text import MIMEText
+ from email.mime.multipart import MIMEMultipart
+ import os
+def enviar_log_smtp(cuerpo_log, lista_destinatarios):
+    """Envía el log acumulado a múltiples correos usando SMTP (reemplaza Gmail API)."""
+    try:
+        # Configuración desde variables de entorno para seguridad
+        remitente = "rmansilla@cordobaacelera.com.ar"  # El mail que generó la App Password
+        password = os.environ.get('EMAIL_APP_PASSWORD')
         
-#         if not password:
-#             log("🔴 Error: No se encontró EMAIL_APP_PASSWORD en los secretos.")
-#             return
-#         else:
-#             log(f"🔑 Contraseña detectada. Largo: {len(password)} caracteres.")
-#             # ESTA LÍNEA DE CONTROL:
-#             log(f"¿Tiene espacios o saltos de línea?: {password.strip() != password}")
+        if not password:
+            log("🔴 Error: No se encontró EMAIL_APP_PASSWORD en los secretos.")
+            return
+        else:
+            log(f"🔑 Contraseña detectada. Largo: {len(password)} caracteres.")
+            # ESTA LÍNEA DE CONTROL:
+            log(f"¿Tiene espacios o saltos de línea?: {password.strip() != password}")
           
 
-#         # Iniciamos la conexión con el servidor SMTP de Gmail
-#         log("🔗 Conectando al servidor de correo...")
-#         server = smtplib.SMTP('smtp.gmail.com', 587)
-#         server.starttls()  # Cifrado de seguridad
-#         server.login(remitente, password)
+        # Iniciamos la conexión con el servidor SMTP de Gmail
+        log("🔗 Conectando al servidor de correo...")
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()  # Cifrado de seguridad
+        server.login(remitente, password)
 
-#         for destinatario in lista_destinatarios:
-#             # Creamos el contenedor del mensaje
-#             message = MIMEMultipart()
-#             message['To'] = destinatario
-#             message['From'] = f"Scraper Automático <{remitente}>"
-#             message['Subject'] = "📊 REPORTE SCRP AGENDA"
+        for destinatario in lista_destinatarios:
+            # Creamos el contenedor del mensaje
+            message = MIMEMultipart()
+            message['To'] = destinatario
+            message['From'] = f"Scraper Automático <{remitente}>"
+            message['Subject'] = "📊 REPORTE SCRP AGENDA"
           
-#             # Agregamos el cuerpo del log
-#             message.attach(MIMEText(cuerpo_log, 'plain'))
+            # Agregamos el cuerpo del log
+            message.attach(MIMEText(cuerpo_log, 'plain'))
 
-#             # Envío del correo
-#             server.send_message(message)
-#             log(f"📧 Mail enviado a {destinatario}")
+            # Envío del correo
+            server.send_message(message)
+            log(f"📧 Mail enviado a {destinatario}")
 
-#         # Cerramos la conexión después de enviar a todos
-#         server.quit()
-#         log("✅ Proceso de envío finalizado.")
+        # Cerramos la conexión después de enviar a todos
+        server.quit()
+        log("✅ Proceso de envío finalizado.")
 
-#     except Exception as e:
-#         log(f"🔴 Error al enviar mail vía SMTP: {e}")
+    except Exception as e:
+        log(f"🔴 Error al enviar mail vía SMTP: {e}")
 
 
 
