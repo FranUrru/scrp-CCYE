@@ -2754,10 +2754,10 @@ def ejecutar_scraper_quality():
         driver.get(base_url)
         time.sleep(6)
         
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight/2);")
-        time.sleep(2)
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)
+        # 🔥 SCROLL PROFUNDO: 5 repeticiones para que carguen todos los eventos
+        for _ in range(5):
+            driver.execute_script("window.scrollBy(0, 800);")
+            time.sleep(2)
 
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         
@@ -2795,6 +2795,7 @@ def ejecutar_scraper_quality():
                             nombre = textos_sec[0]
                 
                 texto_completo = soup_det.get_text(separator=" | ")
+                # 🔥 FECHA LIMPIA: El replace saca la coma para que Sheets no se confunda
                 match_fecha = re.search(r'(\d{1,2}\s+de\s+[a-zA-Z]+\,?\s+\d{4})', texto_completo)
                 fecha_str = match_fecha.group(1).replace(',', '') if match_fecha else datetime.now().strftime('%Y-%m-%d')
                 
@@ -2818,7 +2819,7 @@ def ejecutar_scraper_quality():
                     'Origen': link, 
                     'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
                     'confianza_clasificacion': '',
-                    'ID': ''
+                    'ID': ' ' # 🔥 EL ESPACIO SALVADOR PARA QUE NO ROMPA SHEETS
                 })
             except Exception as e:
                 continue
@@ -2940,7 +2941,7 @@ def ejecutar_scraper_enigma():
                     'Origen': link, 
                     'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
                     'confianza_clasificacion': '',
-                    'ID': ''
+                    'ID': ' '
                 })
             except Exception as e:
                 continue
@@ -3064,7 +3065,7 @@ def ejecutar_scraper_universo():
                     'Origen': link,
                     'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
                     'confianza_clasificacion': '',
-                    'ID': ''
+                    'ID': ' '
                 })
             except: continue
 
