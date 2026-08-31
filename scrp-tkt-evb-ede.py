@@ -3093,7 +3093,7 @@ dict_fuentes = {
 }
 
 def procesar_duplicados_y_normalizar():
-    print("🚀 Iniciando proceso de limpieza con Jerarquía de Fuentes...")
+    log("🚀 Iniciando proceso de limpieza con Jerarquía de Fuentes...")
 
   
     # --- CIUDADES BLACKLIST (no permitidas) ---
@@ -3780,6 +3780,11 @@ def procesar_duplicados_y_normalizar():
 indices_processed = set()
 log('')
 log('Detección y procesamiento de duplicados')
+log('⏳ Esperando 2 minutos para que Google Sheets sincronice los datos nuevos (IMPORTRANGE)...')
+
+import time
+time.sleep(120)
+
 procesar_duplicados_y_normalizar()
 
     # --- FUNCIONES AUXILIARES INTERNAS ---
