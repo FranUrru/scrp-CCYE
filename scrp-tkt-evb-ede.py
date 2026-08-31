@@ -2717,8 +2717,33 @@ log('FAMAF')
 ejecutar_scraper_famaf()
 
 # =============================================================================
-#              SCRAPERS NUEVOS (QUALITY, ENIGMA, UNIVERSO) - ORDENADOS
+#              SCRAPERS NUEVOS (QUALITY, ENIGMA, UNIVERSO)
 # =============================================================================
+
+def iniciar_driver_quality():
+    """Driver con camuflaje (User-Agent) para evitar que la página bloquee al bot."""
+    chrome_options = Options()
+    chrome_options.add_argument("--headless=new") 
+    chrome_options.add_argument('--log-level=3')
+    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    chrome_options.add_argument(f"user-agent={user_agent}")
+    return webdriver.Chrome(options=chrome_options)
+
+def convertir_fecha_texto(texto_fecha):
+    """Convierte fechas como '04 de octubre 2026' a formato '2026-10-04'"""
+    meses = {'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04', 'mayo': '05', 'junio': '06', 
+             'julio': '07', 'agosto': '08', 'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12'}
+    try:
+        match = re.search(r'(\d{1,2})\s+de\s+([a-zA-Z]+)(?:,?\s+)?(\d{4})?', texto_fecha.lower())
+        if match:
+            dia = match.group(1).zfill(2)
+            mes = meses.get(match.group(2), '01')
+            anio = match.group(3) if match.group(3) else str(datetime.now().year)
+            return f"{anio}-{mes}-{dia}"
+    except:
+        pass
+    return datetime.now().strftime('%Y-%m-%d')
+
 
 # --- QUALITY CENTER ---
 def extraer_precios_quality(soup):
@@ -2746,15 +2771,15 @@ def ejecutar_scraper_quality():
     }
     
     try:
-        log("🚀 Iniciando scraper de Quality Center...")
-        driver = iniciar_driver() 
+        log("🚀 Iniciando scraper de Quality Center (Con camuflaje)...")
+        driver = iniciar_driver_quality() # Usamos el driver camuflado
         base_url = "https://qualitycenter.com"
         eventos_procesados = []
         
         driver.get(base_url)
         time.sleep(6)
         
-        # 🔥 SCROLL PROFUNDO: 5 repeticiones para que carguen todos los eventos
+        # Scroll profundo: 5 bajadas para cargar toda la cartelera
         for _ in range(5):
             driver.execute_script("window.scrollBy(0, 800);")
             time.sleep(2)
@@ -2795,9 +2820,11 @@ def ejecutar_scraper_quality():
                             nombre = textos_sec[0]
                 
                 texto_completo = soup_det.get_text(separator=" | ")
-                # 🔥 FECHA LIMPIA: El replace saca la coma para que Sheets no se confunda
                 match_fecha = re.search(r'(\d{1,2}\s+de\s+[a-zA-Z]+\,?\s+\d{4})', texto_completo)
-                fecha_str = match_fecha.group(1).replace(',', '') if match_fecha else datetime.now().strftime('%Y-%m-%d')
+                if match_fecha:
+                    fecha_str = convertir_fecha_texto(match_fecha.group(1))
+                else:
+                    fecha_str = datetime.now().strftime('%Y-%m-%d')
                 
                 lugar = "Quality Espacio"
                 if "teatro" in texto_completo.lower(): lugar = "Quality Teatro"
@@ -2819,14 +2846,15 @@ def ejecutar_scraper_quality():
                     'Origen': link, 
                     'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
                     'confianza_clasificacion': '',
-                    'ID': ' ' # 🔥 EL ESPACIO SALVADOR PARA QUE NO ROMPA SHEETS
+                    'ID': ' ' # Espacio protector para Sheets
                 })
             except Exception as e:
                 continue
 
         if eventos_procesados:
             df_final = pd.DataFrame(eventos_procesados)
-            df_final = df_final.drop_duplicates(subset=['Eventos', 'Comienza'])
+            # Borramos duplicados POR LINK, no por nombre
+            df_final = df_final.drop_duplicates(subset=['Origen'])
             
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
             log(f"🤖 Quality — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
@@ -2869,8 +2897,8 @@ def ejecutar_scraper_enigma():
     }
     
     try:
-        log("🚀 Iniciando scraper de Enigma Tickets...")
-        driver = iniciar_driver()
+        log("🚀 Iniciando scraper de Enigma Tickets (Con camuflaje)...")
+        driver = iniciar_driver_quality() # Usamos el driver camuflado
         base_url = "https://www.enigmatickets.com"
         eventos_procesados = []
         
@@ -2919,8 +2947,10 @@ def ejecutar_scraper_enigma():
                 match_larga = re.search(r'(\d{1,2}\s+de\s+[a-zA-Z]+)', texto_pagina)
                 
                 if match_corta: fecha_str = match_corta.group(1)
-                elif match_larga: fecha_str = match_larga.group(1)
-                else: fecha_str = datetime.now().strftime('%Y-%m-%d')
+                elif match_larga: 
+                    fecha_str = convertir_fecha_texto(match_larga.group(1)) # Normalizamos fecha si es larga
+                else: 
+                    fecha_str = datetime.now().strftime('%Y-%m-%d')
                 
                 lugar = "Córdoba"
                 if "kempes" in texto_lower: lugar = "Estadio Kempes"
@@ -2941,14 +2971,15 @@ def ejecutar_scraper_enigma():
                     'Origen': link, 
                     'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
                     'confianza_clasificacion': '',
-                    'ID': ' '
+                    'ID': ' ' # Espacio protector
                 })
             except Exception as e:
                 continue
 
         if eventos_procesados:
             df_final = pd.DataFrame(eventos_procesados)
-            df_final = df_final.drop_duplicates(subset=['Eventos'])
+            # Borramos duplicados POR LINK, no por nombre
+            df_final = df_final.drop_duplicates(subset=['Origen'])
             
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
             log(f"🤖 Enigma — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
@@ -2991,8 +3022,8 @@ def ejecutar_scraper_universo():
     }
     
     try:
-        log("🚀 Iniciando scraper de Universo Tickets...")
-        driver = iniciar_driver()
+        log("🚀 Iniciando scraper de Universo Tickets (Con camuflaje)...")
+        driver = iniciar_driver_quality() # Usamos el driver camuflado
         base_url = "https://universotickets.com"
         eventos_procesados = []
         
@@ -3044,7 +3075,10 @@ def ejecutar_scraper_universo():
                 if any(prov in nombre.lower() for prov in ['tucumán', 'tucuman', 'buenos aires', 'rosario']): continue
 
                 match_fecha = re.search(r'(\d{1,2}\s+(?:de\s+)?(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre))', texto_ficha, re.I)
-                fecha_str = match_fecha.group(1) if match_fecha else "Fecha a confirmar"
+                if match_fecha:
+                    fecha_str = convertir_fecha_texto(match_fecha.group(1)) # Normalizamos
+                else:
+                    fecha_str = "Fecha a confirmar"
 
                 lugar = "Córdoba"
                 if "kempes" in texto_lower or "ramón cárcano" in texto_lower: lugar = "Estadio Kempes"
@@ -3065,13 +3099,14 @@ def ejecutar_scraper_universo():
                     'Origen': link,
                     'fecha de carga': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
                     'confianza_clasificacion': '',
-                    'ID': ' '
+                    'ID': ' ' # Espacio protector
                 })
             except: continue
 
         if eventos_procesados:
             df_final = pd.DataFrame(eventos_procesados)
-            df_final = df_final.drop_duplicates(subset=['Eventos'])
+            # Borramos duplicados POR LINK
+            df_final = df_final.drop_duplicates(subset=['Origen'])
             
             df_final, metricas = aplicar_clasificador(df_final, 'Eventos', 'Lugar', 'Tipo de evento', 'confianza_clasificacion')
             log(f"🤖 Universo — Predicciones: {metricas['predicciones']} | Confianza: {metricas['confianza_promedio']}")
@@ -3100,7 +3135,7 @@ def ejecutar_scraper_universo():
         if driver: driver.quit()
         reporte["fin"] = datetime.now().strftime('%H:%M:%S')
         return reporte
-
+        
 # --- EJECUCIÓN ---
 log('')
 ejecutar_scraper_quality()
