@@ -3566,10 +3566,10 @@ def procesar_duplicados_y_normalizar():
             lugar_key = lugar_raw.lower().strip()
         
             # ← NUEVO: Si el valor actual ya ES un valor normalizado, saltearlo
-            if lugar_key in valores_ya_normalizados:
-    lugares_ya_ok += 1
-    df_principal.at[idx, 'Lugar_Norm'] = row.get('Lugar', '')  # ✅ Asignación obligatoria
-    continue
+           if lugar_key in valores_ya_normalizados:
+                lugares_ya_ok += 1
+                df_principal.at[idx, 'Lugar_Norm'] = row.get('Lugar', '')
+                continue
         
             if lugar_key in mapeo_lugares:
                 lugar_norm = mapeo_lugares[lugar_key]
