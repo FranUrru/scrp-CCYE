@@ -3567,10 +3567,9 @@ def procesar_duplicados_y_normalizar():
         
             # ← NUEVO: Si el valor actual ya ES un valor normalizado, saltearlo
             if lugar_key in valores_ya_normalizados:
-                lugares_ya_ok += 1
-                # Igual actualizamos Lugar_Norm en el df para la detección de duplicados
-                # (el valor ya está bien, no hay que escribir nada en Sheets)
-                continue
+    lugares_ya_ok += 1
+    df_principal.at[idx, 'Lugar_Norm'] = row.get('Lugar', '')  # ✅ Asignación obligatoria
+    continue
         
             if lugar_key in mapeo_lugares:
                 lugar_norm = mapeo_lugares[lugar_key]
