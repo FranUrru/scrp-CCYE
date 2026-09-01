@@ -3605,8 +3605,10 @@ def procesar_duplicados_y_normalizar():
                 
         # --- 2. PROCESAMIENTO DE FECHAS ---
         print("\n📅 Procesando fechas...")
-        df_principal['Comienza_DT'] = pd.to_datetime(df_principal['Comienza'], errors='coerce').dt.date
-        df_principal['Comienza_DTM'] = pd.to_datetime(df_principal['Comienza'], errors='coerce')  # ← datetime completo
+        # Forzamos dayfirst=True para que respete el formato DD/MM/YYYY y evite confusiones
+        df_principal['Comienza_DTM'] = pd.to_datetime(df_principal['Comienza'], errors='coerce', dayfirst=True)
+        df_principal['Comienza_DT'] = df_principal['Comienza_DTM'].dt.date
+        
         fechas_invalidas = df_principal['Comienza_DT'].isna().sum()
         print(f"  ✅ Fechas procesadas. Fechas inválidas/nulas: {fechas_invalidas}")
 
