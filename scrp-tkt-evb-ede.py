@@ -3436,7 +3436,16 @@ def procesar_duplicados_y_normalizar():
         if df_principal.empty:
             print("⚠️ DataFrame principal vacío. Abortando.")
             return
-
+# 🛡️ FORZAR RE-NORMALIZACIÓN DE LUGAR_NORM SOBRE LO EXISTENTE
+        print("⚙️ Re-normalizando lugares de la base histórica...")
+        df_equiv = obtener_df_de_sheets("Equiv Lugares", "Hoja 1")
+        mapeo_lugares = {str(k).lower().strip(): str(v).strip() for k, v in zip(df_equiv.iloc[:, 0], df_equiv.iloc[:, 1])} if not df_equiv.empty else {}
+        
+        for idx, row in df_principal.iterrows():
+            lugar_raw = str(row.get('Lugar', ''))
+            lugar_key = lugar_raw.lower().strip()
+            # Si tiene equivalencia, lo unifica; si no, deja el lugar tal cual está
+            df_principal.at[idx, 'Lugar_Norm'] = mapeo_lugares.get(lugar_key, lugar_raw)
         print(f"📋 Total de eventos cargados: {len(df_principal)}")
         print(f"📌 Columnas disponibles: {list(df_principal.columns)}")
 
