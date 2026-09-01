@@ -3566,7 +3566,12 @@ def procesar_duplicados_y_normalizar():
             lugar_key = lugar_raw.lower().strip()
         
             # ← NUEVO: Si el valor actual ya ES un valor normalizado, saltearlo
-           if lugar_key in valores_ya_normalizados:
+           for idx, row in df_principal.iterrows():
+            lugar_raw = str(row.get('Lugar', ''))
+            lugar_key = lugar_raw.lower().strip()
+        
+            # Si el valor actual ya ES un valor normalizado, saltearlo pero guardar Lugar_Norm
+            if lugar_key in valores_ya_normalizados:
                 lugares_ya_ok += 1
                 df_principal.at[idx, 'Lugar_Norm'] = row.get('Lugar', '')
                 continue
@@ -3582,24 +3587,18 @@ def procesar_duplicados_y_normalizar():
                         print(f"  ✏️ Normalizando '{lugar_raw}' → '{lugar_norm}' en {tabla_origen}")
                         normalizar_lugar_en_sheet(
                             tabla_origen, "Hoja 1", row.get('Origen'), lugar_norm,
-                            nombre_evento=row.get('Eventos'),   # ← nuevo
-                            fecha_evento=row.get('Comienza')    # ← nuevo
+                            nombre_evento=row.get('Eventos'),
+                            fecha_evento=row.get('Comienza')
                         )
                         lugares_normalizados += 1
             else:
                 if lugar_key not in lugares_no_encontrados:
                     lugares_no_encontrados.append(lugar_key)
         
-        df_principal['Lugar_Norm'] = df_principal['Lugar']
-        
-        log(f"  ✅ Normalización completada: {lugares_normalizados} lugares actualizados en sheets.")
-        log(f"  ⏭️ Lugares ya normalizados (salteados): {lugares_ya_ok}")
-        log(f"  ⚠️ Lugares NO encontrados en tabla de equivalencias: {len(lugares_no_encontrados)}")
-        if lugares_no_encontrados:
-            print(f"  📝 Detalle lugares no encontrados:")
-            for lugar in lugares_no_encontrados:
-                print(f"      - '{lugar}'")
-
+            # Asegurarnos de que el resto que no entró arriba también tenga su Lugar_Norm asignado
+            if 'Lugar_Norm' not in df_principal.columns or pd.isna(df_principal.at[idx, 'Lugar_Norm']):
+                df_principal.at[idx, 'Lugar_Norm'] = df_principal.at[idx, 'Lugar']
+                
         # --- 2. PROCESAMIENTO DE FECHAS ---
         print("\n📅 Procesando fechas...")
         df_principal['Comienza_DT'] = pd.to_datetime(df_principal['Comienza'], errors='coerce').dt.date
