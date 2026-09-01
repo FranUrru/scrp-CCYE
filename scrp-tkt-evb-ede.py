@@ -3824,7 +3824,10 @@ def obtener_df_de_sheets(nombre_tabla, nombre_hoja):
         return pd.DataFrame()
 
 # --- 6. SNAPSHOT JSON EN DRIVE ---
-print("\n🗂️ Generando snapshot JSON en Drive...")
+print("\n⏳ Pausa preventiva de 5s para liberar cuota de la API...")
+time.sleep(5)
+
+print("\n📥 Generando snapshot JSON en Drive...")
 
 import os, json as json_lib, io, time
 from google.oauth2 import service_account
