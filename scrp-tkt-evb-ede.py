@@ -3189,7 +3189,7 @@ def procesar_duplicados_y_normalizar():
             return pd.DataFrame()
 
     def borrar_fila_por_origen(nombre_tabla, nombre_hoja, origen_link):
-        import os, json, gspread
+        import os, json, time, gspread
         from google.oauth2 import service_account
 
         url_exceptuada = "https://www.feriasycongresos.com/calendario-de-eventos?busqueda=C%C3%B3rdoba"
@@ -3229,6 +3229,8 @@ def procesar_duplicados_y_normalizar():
                     fila_a_borrar = match_idx[0] + 2
                     sheet.delete_rows(fila_a_borrar)
                     print(f"    🗑️ Eliminado de '{nombre_tabla}' (col {col_id}): {origen_link}")
+                    
+                    time.sleep(1.5)
                 else:
                     print(f"    ⚠️ Link no encontrado en '{nombre_tabla}': {origen_link}")
             else:
