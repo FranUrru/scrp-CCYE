@@ -3561,12 +3561,7 @@ def procesar_duplicados_y_normalizar():
         lugares_normalizados = 0
         lugares_ya_ok = 0  # ← NUEVO: contador de los que se saltean
         
-        for idx, row in df_principal.iterrows():
-            lugar_raw = str(row.get('Lugar', ''))
-            lugar_key = lugar_raw.lower().strip()
-        
-            # ← NUEVO: Si el valor actual ya ES un valor normalizado, saltearlo
-           for idx, row in df_principal.iterrows():
+       for idx, row in df_principal.iterrows():
             lugar_raw = str(row.get('Lugar', ''))
             lugar_key = lugar_raw.lower().strip()
         
