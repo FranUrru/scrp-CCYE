@@ -3547,6 +3547,49 @@ def procesar_duplicados_y_normalizar():
         print(f"  ✅ Filtro blacklist completado: {len(indices_a_eliminar)} eventos eliminados.")
         df_principal = df_principal.drop(indices_a_eliminar).reset_index(drop=True)
         print(f"  📋 Eventos restantes tras filtro: {len(df_principal)}")
+        
+        # --- VERIFICACIÓN DE TÍTULOS BLACKLIST Y REPETIDOS MANUALES ---
+        
+        print("\n🗑️ Iniciando filtro de Títulos prohibidos...")
+        df_titulos_prohibidos = obtener_df_de_sheets("Entradas auto", "Blacklist Titulos")
+        
+        if not df_titulos_prohibidos.empty:
+            indices_basura = []
+            col_titulo = df_titulos_prohibidos.columns[0]
+            col_fuente = df_titulos_prohibidos.columns[1] if len(df_titulos_prohibidos.columns) > 1 else None
+
+            for idx, row in df_principal.iterrows():
+                titulo_evento = str(row.get('Eventos', '')).lower()
+                fuente_evento = str(row.get('Fuente', '')).lower().strip()
+                
+                for _, fila_black in df_titulos_prohibidos.iterrows():
+                    malo = str(fila_black[col_titulo]).lower().strip()
+                    fuente_mala = str(fila_black[col_fuente]).lower().strip() if col_fuente and pd.notna(fila_black[col_fuente]) else ""
+                    
+                    if malo != "" and malo != "nan" and malo in titulo_evento:
+                        if fuente_mala == "" or fuente_mala == "nan" or fuente_mala in fuente_evento:
+                            nombre_real = str(row.get('Eventos', ''))
+                            fuente_real = row.get('Fuente', 'Desconocida')
+                            
+                            registrar_rechazo(
+                                nombre=nombre_real,
+                                loc=row.get('Lugar', ''),
+                                fecha=row.get('Comienza', 'N/A'),
+                                motivo=f"Eliminado por Blacklist manual: {malo}",
+                                linea="filtro_titulos",
+                                fuente=fuente_real,
+                                href=row.get('Origen', '')
+                            )
+                            indices_basura.append(idx)
+                            
+                            tabla_origen = dict_fuentes.get(fuente_real)
+                            if tabla_origen:
+                                print(f"  🚫 Blacklist: Eliminando '{nombre_real}' de {tabla_origen}")
+                                borrar_fila_por_origen(tabla_origen, "Hoja 1", row.get('Origen'))
+                            break
+
+            print(f"  ✅ Filtro de títulos completado: {len(indices_basura)} eventos eliminados.")
+            df_principal = df_principal.drop(indices_basura).reset_index(drop=True)
             
         # --- 1. NORMALIZACIÓN DE LUGARES ---
         print("\n📍 Iniciando normalización de lugares...")
