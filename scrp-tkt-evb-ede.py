@@ -3224,7 +3224,7 @@ def procesar_duplicados_y_normalizar():
             col_id = next((c for c in columnas_posibles if c in df_temp.columns), None)
 
             if col_id:
-                match_idx = df_temp.index[df_temp[col_id].astype(str) == str(origen_link)].tolist()
+                match_idx = df_temp.index[df_temp[col_id].astype(str).str.strip().str.lower() == str(origen_link).strip().lower()].tolist()
                 if match_idx:
                     fila_a_borrar = match_idx[0] + 2
                     sheet.delete_rows(fila_a_borrar)
